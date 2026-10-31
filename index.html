@@ -1,0 +1,1873 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="BYT">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Big Year Terminal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Layout: command bar + ticker + function keys on top, a grid of numbered panels below
+   (5 rows x 12 cols on wide screens, 2 cols on tablets, one stacked column on phones). */
+:root{
+  --bg:#000; --panel:#070809; --head:#14171c; --line:#262b33; --line2:#3a414c;
+  --ink:#e9e6dc; --dim:#8b8f96; --amber:#ffb000; --amber2:#ffcf5c; --key:#ffe14d;
+  --cyan:#45c8ff; --up:#3ddc84; --down:#ff5a5a; --lifer:#ff5fd2; --need:#ffb000; --target:#ffe14d; --have:#5b6470;
+  --rare:#ff5a5a; --sel:#1d2633; --f:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --fc:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif; color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#e9e7e0; --panel:#fbfaf6; --head:#dedbd2; --line:#cbc7bc; --line2:#aaa597;
+  --ink:#16181b; --dim:#5d6168; --amber:#a35c00; --amber2:#7c4500; --key:#7a5d00;
+  --cyan:#0b6aa8; --up:#1c7a46; --down:#c42b2b; --lifer:#b0258a; --need:#a35c00; --target:#7a5d00; --have:#8b9098;
+  --rare:#c42b2b; --sel:#e6e1d3; color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:13px/1.35 var(--f);font-variant-numeric:tabular-nums;padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:calc(46px + env(safe-area-inset-bottom,0px))}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:1px solid var(--key);outline-offset:1px}
+.side{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding-block:6px;background:var(--bg);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:900}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:901;background:var(--bg)}
+.logo{font:700 15px/1 var(--fc);letter-spacing:.04em;background:var(--amber);color:#000;padding:4px 7px}
+.cmd{flex:1 1 300px;position:relative;display:flex;align-items:center;border:1px solid var(--line2);background:var(--panel)}
+.cmd b{color:var(--amber);padding:0 6px 0 8px;font-weight:600}
+.cmd input{flex:1;min-width:0;border:0;background:none;padding:7px 4px;color:var(--amber2);text-transform:uppercase;outline:none;font-size:14px}
+.cmd .go{border:0;background:var(--key);color:#000;font-weight:700;padding:7px 10px;cursor:pointer}
+.ac{position:absolute;left:-1px;right:-1px;top:100%;background:var(--panel);border:1px solid var(--line2);z-index:950;max-height:60vh;overflow:auto}
+.ac div{padding:6px 10px;cursor:pointer;display:flex;gap:10px;justify-content:space-between}
+.ac div[aria-selected="true"],.ac div:hover{background:var(--sel)}
+.ac .k{color:var(--key);font-weight:600}
+.ac .d{color:var(--dim)}
+.scope{display:flex;gap:10px;flex-wrap:wrap;color:var(--dim);font-size:12px;align-items:center}
+.scope b{color:var(--ink);font-weight:500}
+.asof b{color:var(--amber)} .asof.off{background:var(--down);color:#000;padding:1px 6px;font-weight:700} .asof.off b{color:#000}
+.lights{display:flex;gap:8px;font-size:11px;color:var(--dim)}
+.lights span::before{content:"";display:inline-block;width:7px;height:7px;margin-right:4px;background:var(--have);vertical-align:0}
+.lights span.ok::before{background:var(--up)} .lights span.bad::before{background:var(--down)} .lights span.wait::before{background:var(--amber)}
+.clock{color:var(--amber);font-weight:600}
+.iconbtn{border:1px solid var(--line2);background:none;cursor:pointer;padding:5px 8px;color:var(--dim)}
+.iconbtn:hover{color:var(--ink);border-color:var(--dim)}
+
+/* ticker */
+.ticker{overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);background:var(--panel);height:24px;position:relative}
+.ticker .run{display:inline-block;padding-left:100%;animation:crawl var(--dur,80s) linear infinite;line-height:24px}
+.ticker:hover .run{animation-play-state:paused}
+.ticker .it{margin-right:34px;cursor:pointer}
+.ticker .it b{color:var(--ink);font-weight:600}
+@keyframes crawl{to{transform:translateX(-100%)}}
+.demo-flag{position:absolute;right:0;top:0;bottom:0;background:var(--down);color:#000;font-weight:700;padding:0 8px;line-height:24px;z-index:2}
+
+/* function keys */
+.fkeys{display:flex;gap:2px;overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--line);scrollbar-width:none}
+.fkeys::-webkit-scrollbar{display:none}
+.fkeys button{border:0;background:var(--head);padding:5px 9px;cursor:pointer;white-space:nowrap;font-size:12px;color:var(--ink)}
+.fkeys button i{font-style:normal;color:var(--key);font-weight:700;margin-right:5px}
+.fkeys button:hover{background:var(--sel)}
+@media (max-width:899px){
+  .fkeys{position:fixed;left:0;right:0;bottom:0;z-index:900;border-top:1px solid var(--line2);border-bottom:0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .fkeys button{padding:12px 11px;font-size:12.5px}
+}
+
+/* grid of panels */
+.grid{display:grid;gap:2px;padding-block:2px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);
+  grid-template-areas:
+   "need need need need map map map map map pace pace pace"
+   "need need need need map map map map map plan plan plan"
+   "rare rare rare rare wx wx wx wx wx plan plan plan"
+   "tgt tgt tgt tgt call call call call call wire wire wire"
+   "inat inat inat inat call call call call call wire wire wire";
+  height:calc(100dvh - 104px - env(safe-area-inset-top,0px));min-height:1100px}
+.p{background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;min-height:0;min-width:0}
+.ph{display:flex;align-items:center;gap:8px;background:var(--head);padding:3px 6px;border-bottom:1px solid var(--line);min-height:26px}
+.ph .num{background:var(--amber);color:#000;font-weight:700;font-size:11px;padding:1px 4px}
+.ph h2{margin:0;font:600 13px/1 var(--fc);letter-spacing:.06em;text-transform:uppercase;color:var(--amber)}
+.ph .sub{color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ph .tools{display:flex;gap:4px;align-items:center;margin-left:auto}
+.tb{border:1px solid var(--line2);background:none;cursor:pointer;padding:1px 6px;font-size:11px;color:var(--dim)}
+.tb[aria-pressed="true"]{background:var(--amber);color:#000;border-color:var(--amber);font-weight:600}
+.tb:hover{color:var(--ink)}
+.pb{flex:1;overflow:auto;min-height:0;position:relative}
+.p.max{position:fixed;inset:0;z-index:1200;border:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (max-width:1199px) and (min-width:900px){
+  .grid{grid-template-columns:1fr 1fr;grid-template-areas:"pace plan" "need map" "need wx" "rare call" "tgt wire" "inat wire";
+    height:auto;min-height:0;grid-auto-rows:auto}
+  .p{height:420px}
+}
+@media (max-width:899px){
+  .grid{display:flex;flex-direction:column;height:auto;min-height:0}
+  .p{max-height:none}
+  .p .pb{max-height:62vh;flex:none}
+  .lights{display:none}
+  #p-pace{order:1} #p-plan{order:2} #p-need{order:3} #p-map{order:4} #p-wx{order:5} #p-call{order:6} #p-rare{order:7} #p-tgt{order:8} #p-wire{order:9} #p-inat{order:10}
+  #p-map .pb{height:52vh;max-height:none}
+  #p-pace .pb,#p-wx .pb{max-height:none}
+  body{font-size:13.5px}
+}
+
+/* tables */
+table.t{width:100%;border-collapse:collapse}
+.t th{position:sticky;top:0;background:var(--panel);color:var(--dim);font-weight:500;font-size:11px;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line2);cursor:pointer;white-space:nowrap;z-index:1}
+.t th.r,.t td.r{text-align:right}
+.t td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.t tr[data-sp],.t tr[data-sub],.t tr[data-hot],.t tr[data-loc]{cursor:pointer}
+.t tbody tr:hover{background:var(--sel)}
+.t .nm{color:var(--ink);font-weight:500}
+.t .sm{color:var(--dim);font-size:11.5px}
+.lifer{color:var(--lifer)} .need{color:var(--need)} .tgt{color:var(--target)} .have{color:var(--dim)}
+.up{color:var(--up)} .down{color:var(--down)} .dim{color:var(--dim)} .amb{color:var(--amber)} .cy{color:var(--cyan)} .wh{color:var(--ink)}
+.tag{display:inline-block;font-size:10px;font-weight:700;padding:0 4px;margin-left:5px;border:1px solid currentColor;vertical-align:1px;letter-spacing:.04em}
+.empty{padding:16px 12px;color:var(--dim);max-width:60ch}
+.empty h3{color:var(--amber);font:600 14px var(--fc);letter-spacing:.05em;text-transform:uppercase;margin:0 0 6px}
+.note{padding:5px 8px;color:var(--dim);font-size:11.5px;border-bottom:1px solid var(--line)}
+.btn{border:1px solid var(--line2);background:var(--head);cursor:pointer;padding:5px 10px;font-size:12px;color:var(--ink)}
+.btn:hover{border-color:var(--amber)}
+.btn.pri{background:var(--amber);color:#000;border-color:var(--amber);font-weight:700}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line)}
+select.s,input.s{background:var(--panel);border:1px solid var(--line2);padding:4px 6px;font-size:12px;max-width:100%}
+
+/* pace */
+.big{font:600 34px/1 var(--f);color:var(--ink);letter-spacing:-.02em}
+.big small{font-size:16px;color:var(--dim)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kpis div{background:var(--panel);padding:3px 8px}
+.kpis small{display:block;color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.kpis b{font-weight:600;font-size:16px}
+.track{height:6px;background:var(--line);position:relative;margin:8px 0 0}
+.track i{position:absolute;left:0;top:0;bottom:0;background:var(--amber)}
+.track u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink)}
+canvas.spark{display:block;width:100%;height:64px}
+
+/* plan */
+.play{padding:7px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+.play:hover{background:var(--sel)}
+.play .hd{display:flex;gap:8px;align-items:baseline}
+.play .rk{color:#000;background:var(--amber);font-weight:700;padding:0 5px;font-size:11px}
+.play .nm{font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.play .sc{color:var(--amber);font-weight:600}
+.play .why{color:var(--dim);font-size:11.5px;margin-top:2px}
+.play .sp{font-size:12px;margin-top:2px}
+.bar{display:inline-block;height:6px;background:var(--amber);vertical-align:1px;margin-right:6px}
+.brief{padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink)}
+.brief b{color:var(--key)}
+
+/* wx */
+.days{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.day{background:var(--panel);padding:6px 7px;font-size:12px}
+.day .dn{color:var(--amber);font-weight:600}
+.day .mg{font-size:11px;margin-top:3px}
+.arrow{display:inline-block;transform-origin:50% 50%;color:var(--cyan)}
+.wxcols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.wxcols>div{min-width:0}
+@media (max-width:520px){.days{grid-template-columns:repeat(2,1fr)}.wxcols{grid-template-columns:1fr}}
+
+/* call */
+.quiz{padding:10px 8px;max-width:680px}
+.qplay{width:64px;height:64px;border-radius:50%;border:2px solid var(--amber);background:none;color:var(--amber);font-size:24px;cursor:pointer}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.choices button{border:1px solid var(--line2);background:var(--head);padding:10px 8px;cursor:pointer;text-align:left;font-size:13px}
+.choices button.ok{border-color:var(--up);color:var(--up)} .choices button.no{border-color:var(--down);color:var(--down)}
+.boxes{display:flex;gap:3px;margin-top:8px}
+.boxes span{flex:1;background:var(--line);height:20px;font-size:10px;text-align:center;line-height:20px;color:var(--dim)}
+.pbtn{border:1px solid var(--line2);background:none;cursor:pointer;color:var(--amber);width:26px;height:22px;padding:0;font-size:11px}
+.pbtn.on{background:var(--amber);color:#000}
+
+/* map */
+#map{position:absolute;inset:0;background:#0b0d10}
+:root[data-theme="light"] #map{background:#d9d6cc}
+.leaflet-container{font:12px var(--f)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--ink);border-radius:0;border:1px solid var(--line2)}
+.leaflet-popup-content{margin:8px 10px}
+.pop h4{margin:0 0 3px;color:var(--amber);font:600 13px var(--fc)}
+.pop ul{margin:3px 0;padding-left:14px;max-height:160px;overflow:auto}
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--ink)!important;border-color:var(--line2)!important}
+.leaflet-control-attribution{background:rgb(0 0 0 / .6)!important;color:#999!important}
+.leaflet-control-attribution a{color:#bbb!important}
+
+
+/* core Leaflet layout, inlined so the map works where the CDN stylesheet is blocked */
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:none;outline:0}
+.leaflet-tile{visibility:hidden;user-select:none}.leaflet-tile-loaded{visibility:inherit}
+.leaflet-container img.leaflet-tile{max-width:none!important;max-height:none!important}
+.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}
+.leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}
+.leaflet-right .leaflet-control{float:right;margin-right:8px}.leaflet-top .leaflet-control{margin-top:8px}.leaflet-left .leaflet-control{margin-left:8px}
+.leaflet-control-zoom a{display:block;width:28px;height:28px;line-height:28px;text-align:center;text-decoration:none;font-size:16px;border:1px solid var(--line2)}
+.leaflet-popup{position:absolute;margin-bottom:20px}.leaflet-popup-tip-container{width:40px;height:20px;position:absolute;left:50%;margin-left:-20px;overflow:hidden;pointer-events:none}
+.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-10px auto 0;transform:rotate(45deg)}
+.leaflet-popup-close-button{position:absolute;top:0;right:0;width:24px;height:24px;text-align:center;color:var(--dim)}
+.leaflet-tooltip{position:absolute;padding:3px 6px;background:var(--panel);border:1px solid var(--line2);color:var(--ink);white-space:nowrap;pointer-events:none}
+.leaflet-interactive{cursor:pointer}.leaflet-control-attribution{padding:0 5px;font-size:10px}
+
+
+/* full-screen pages: species dashboard, compare, ID */
+.page{position:fixed;inset:0;z-index:1300;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch;padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+body.paged{overflow:hidden}
+.pgh{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:flex-start;background:var(--head);border-bottom:1px solid var(--line2);padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.pgh h1{margin:0;font:600 22px/1.15 var(--fc);color:var(--ink);text-wrap:balance}
+.pgh .fn{color:var(--amber);font-weight:700;font-size:11px}
+.pgh .sub{color:var(--dim);font-size:12px;margin-top:2px}
+.pgb{padding-block:6px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.pgb>.acts{padding-left:0;padding-right:0}
+.spgrid{display:grid;gap:2px;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1fr);align-items:start}
+.spgrid .col{display:flex;flex-direction:column;gap:2px;min-width:0}
+@media (max-width:1099px){.spgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.spgrid .col:nth-child(3){grid-column:1/-1}}
+@media (max-width:699px){.spgrid{grid-template-columns:minmax(0,1fr)}.spgrid .col:nth-child(3){grid-column:auto}}
+.p.card{height:auto}
+.p.card .ph h2{font-size:12px}
+.cb{min-width:0}
+.photo{position:relative;aspect-ratio:4/3;max-width:100%;background:var(--head);display:grid;place-items:center;color:var(--dim);overflow:hidden;font-size:11.5px;text-align:center}
+.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.photo .cap{position:absolute;left:0;right:0;bottom:0;font-size:10px;color:#ddd;background:rgb(0 0 0 / .55);padding:2px 6px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.photo .sil{color:var(--dim);font:600 11px var(--fc);letter-spacing:.06em;text-transform:uppercase;padding:6px}
+.marks{margin:0;padding:8px 10px 6px 26px}
+.marks li{margin:3px 0}
+.marks li::marker{color:var(--amber)}
+.kv1{padding:3px 10px 6px;font-size:12.5px}
+.kv1 b{color:var(--amber);font-weight:600;margin-right:4px}
+.wtext{margin:8px 10px;max-width:65ch}
+.kpis.k4{grid-template-columns:repeat(4,1fr)}
+.kpis.k4 .sm{display:block;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){.kpis.k4{grid-template-columns:repeat(2,1fr)}}
+.like{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:4px 10px;padding:7px 8px;border-bottom:1px solid var(--line);align-items:start;cursor:pointer}
+.like:hover{background:var(--sel)}
+.like .th{width:48px;height:48px;aspect-ratio:auto}
+.mtitle{color:var(--dim);font-size:11px;padding:8px 10px 4px}
+.mbars,.dbars{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;align-items:end;height:64px;padding:0 10px}
+.dbars{grid-template-columns:repeat(30,1fr);gap:1px;height:40px}
+.mbars i,.dbars i{display:block;background:var(--amber);opacity:.75}
+.mbars i.mine{background:var(--cyan)}
+.mbars i.now{opacity:1;outline:1px solid var(--ink)}
+.dbars i{background:var(--cyan)}
+.mlab{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;padding:2px 10px 6px;font-size:10px;color:var(--dim);text-align:center}
+.mlab2{display:flex;justify-content:space-between;padding:2px 10px 8px;font-size:10px;color:var(--dim)}
+#spMap{height:260px;position:relative;background:#0b0d10}
+:root[data-theme="light"] #spMap{background:#d9d6cc}
+.chips{display:flex;flex-wrap:wrap;gap:4px;padding:6px 8px}
+.chip{border:1px solid var(--line2);background:var(--panel);padding:5px 10px;cursor:pointer;font-size:12px;color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--amber);color:#000;border-color:var(--amber);font-weight:600}
+.chip:hover{border-color:var(--amber)}
+.chips.scrollx{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}
+.chips.scrollx .chip{flex:none}
+.chk{display:inline-flex;gap:5px;align-items:center;font-size:12px;cursor:pointer}
+.idgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:2px;margin-top:2px}
+@media (max-width:420px){.idgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.idc{position:relative;background:var(--panel);border:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column;min-width:0}
+.idc:hover{border-color:var(--amber)}
+.idc .photo{aspect-ratio:1}
+.idc .bd{padding:6px 7px 8px;font-size:12px;min-width:0}
+.idc .bd .sm{margin-top:2px}
+.idc .sel{position:absolute;top:4px;right:4px;background:rgb(0 0 0 / .6);padding:4px 5px;line-height:0;z-index:2}
+.idc .sel input{width:18px;height:18px;margin:0}
+.cmpwrap{overflow-x:auto}
+.cmp{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:2px}
+.cmpcol .photo{aspect-ratio:4/3}
+.cmpcol [data-sp]{cursor:pointer}
+/* place picker */
+.scopebtn{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:1px solid var(--line2);background:var(--panel);padding:4px 8px;cursor:pointer;color:var(--dim);font-size:12px;text-align:left}
+.scopebtn:hover{border-color:var(--amber)}
+.scopebtn::after{content:"▾";color:var(--amber)}
+.modal .box.wide{width:min(720px,100%)}
+.pres{max-height:min(42vh,360px);overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pres-r{display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.pres-r:hover{background:var(--sel)}
+.pres-r .pk{flex:none;width:76px;color:var(--amber);font-size:10.5px;font-weight:700;letter-spacing:.04em}
+.pres-r .pl{flex:1;min-width:0;overflow-wrap:anywhere}
+.pres-r .pl b{font-weight:600;color:var(--ink)}
+#searchArea{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1001}
+
+/* drawer + modal */
+.scrim{position:fixed;inset:0;z-index:1400;background:rgb(0 0 0 / .55)}
+.drawer{position:fixed;z-index:1500;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);border-left:1px solid var(--line2);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.dh{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;background:var(--head);border-bottom:1px solid var(--line2)}
+.dh h2{margin:0;font:600 18px/1.2 var(--fc);color:var(--ink);text-wrap:balance}
+.dh .sub{color:var(--dim);font-size:12px;margin-top:2px}
+.dh .fn{color:var(--amber);font-weight:700;font-size:11px}
+.db{flex:1;overflow:auto}
+.sec{padding:8px 12px 3px;color:var(--amber);font:600 11px var(--fc);letter-spacing:.08em;text-transform:uppercase;border-top:1px solid var(--line)}
+.acts{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;padding:6px 12px 10px;font-size:12.5px}
+.kv dt{color:var(--dim)} .kv dd{margin:0;overflow-wrap:anywhere}
+.modal{position:fixed;z-index:1600;inset:0;display:grid;place-items:center;padding:12px;background:rgb(0 0 0 / .6)}
+.modal .box{background:var(--panel);border:1px solid var(--line2);width:min(640px,100%);max-height:100%;overflow:auto}
+.field{display:grid;gap:3px;margin:10px 12px}
+.field label,.field .lb{color:var(--amber);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.field .help{color:var(--dim);font-size:11.5px}
+.field input[type=text],.field input[type=password],.field input[type=number],.field select{width:100%;background:var(--bg);border:1px solid var(--line2);padding:6px 7px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.toast{position:fixed;z-index:2001;left:50%;transform:translateX(-50%);bottom:calc(58px + env(safe-area-inset-bottom,0px));max-width:min(560px,calc(100% - 24px));
+  background:var(--head);border:1px solid var(--amber);padding:8px 12px}
+.toast.err{border-color:var(--down)}
+.busy{position:fixed;top:0;left:0;right:0;height:2px;z-index:2000}
+.busy i{display:block;height:100%;background:var(--amber);width:0;transition:width .2s}
+@media (prefers-reduced-motion:reduce){.ticker .run{animation:none;padding-left:8px}.ticker{overflow-x:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="busy" id="busy" hidden><i id="busyBar"></i></div>
+
+<header class="top side">
+  <span class="logo" title="Big Year Terminal">BYT</span>
+  <div class="cmd" role="combobox" aria-expanded="false" aria-owns="ac">
+    <b>&gt;</b>
+    <input id="cmd" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="TYPE A FUNCTION OR BIRD, THEN GO  ( / )" aria-label="Command">
+    <button class="go" id="goBtn">GO</button>
+    <div class="ac" id="ac" role="listbox" hidden></div>
+  </div>
+  <button class="scopebtn" id="scope" title="Change place and dates (WHERE)" aria-label="Change place and dates"></button>
+  <div class="lights" id="lights"></div>
+  <span class="clock" id="clock"></span>
+  <button class="iconbtn" id="setBtn" title="Settings (SET)" aria-label="Settings">SET</button>
+</header>
+<div class="ticker" id="ticker"><div class="run" id="tickerRun"><span class="it dim">RARE &amp; NEW-NEED WIRE · run a search to fill the tape</span></div><span class="demo-flag" id="demoFlag" hidden>DEMO DATA</span></div>
+<nav class="fkeys side" id="fkeys" aria-label="Functions"></nav>
+
+<main class="grid" id="grid">
+  <section class="p" id="p-need" style="grid-area:need" data-fn="NEED">
+    <div class="ph"><span class="num">1</span><h2>Needs monitor</h2><span class="sub" id="needSub"></span>
+      <span class="tools"><select class="s" id="needShow" aria-label="Show"><option value="year">Year needs</option><option value="life">Lifers</option><option value="all">All species</option></select><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="needBody"></div>
+  </section>
+  <section class="p" id="p-map" style="grid-area:map" data-fn="MAP">
+    <div class="ph"><span class="num">2</span><h2>Map</h2><span class="sub" id="mapSub"></span>
+      <span class="tools"><button class="tb" data-layer="pins" aria-pressed="true">PINS</button><button class="tb" data-layer="heat" aria-pressed="false">HEAT</button>
+      <select class="s" id="heatOf" aria-label="Heat of"><option value="needs">Needs</option><option value="targets">Targets</option><option value="all">All</option><option value="rare">Rare</option></select>
+      <button class="tb" id="radarBtn" aria-pressed="false" title="Rain radar">RADAR</button><button class="tb" id="hotBtn" aria-pressed="false" title="Show hotspots">HS</button><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb"><div id="map"></div><button class="btn pri" id="searchArea" hidden>SEARCH THIS AREA</button></div>
+  </section>
+  <section class="p" id="p-pace" style="grid-area:pace" data-fn="PACE">
+    <div class="ph"><span class="num">3</span><h2>Big year pace</h2><span class="sub" id="paceSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="paceBody"></div>
+  </section>
+  <section class="p" id="p-plan" style="grid-area:plan" data-fn="PLAN">
+    <div class="ph"><span class="num">4</span><h2>Strategy</h2><span class="sub" id="planSub"></span>
+      <span class="tools"><button class="tb" data-plan="plays" aria-pressed="true">PLAYS</button><button class="tb" data-plan="hot" aria-pressed="false">HOTSPOTS</button><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="planBody"></div>
+  </section>
+  <section class="p" id="p-rare" style="grid-area:rare" data-fn="RARE">
+    <div class="ph"><span class="num">5</span><h2>Rarities</h2><span class="sub" id="rareSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="rareBody"></div>
+  </section>
+  <section class="p" id="p-wx" style="grid-area:wx" data-fn="WX">
+    <div class="ph"><span class="num">6</span><h2>Conditions</h2><span class="sub" id="wxSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="wxBody"></div>
+  </section>
+  <section class="p" id="p-tgt" style="grid-area:tgt" data-fn="TGT">
+    <div class="ph"><span class="num">7</span><h2>Target watchlist</h2><span class="sub" id="tgtSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="tgtBody"></div>
+  </section>
+  <section class="p" id="p-call" style="grid-area:call" data-fn="CALL">
+    <div class="ph"><span class="num">8</span><h2>Calls</h2><span class="sub" id="callSub"></span>
+      <span class="tools"><button class="tb" data-cm="pack" aria-pressed="true">FIELD PACK</button><button class="tb" data-cm="quiz" aria-pressed="false">QUIZ</button><button class="tb" data-cm="lib" aria-pressed="false">LIBRARY</button><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="callBody"></div>
+  </section>
+  <section class="p" id="p-wire" style="grid-area:wire" data-fn="WIRE">
+    <div class="ph"><span class="num">9</span><h2>Checklist wire</h2><span class="sub" id="wireSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="wireBody"></div>
+  </section>
+  <section class="p" id="p-inat" style="grid-area:inat" data-fn="INAT">
+    <div class="ph"><span class="num">10</span><h2>iNaturalist cross-check</h2><span class="sub" id="inatSub"></span><span class="tools"><button class="tb" data-max>MAX</button></span></div>
+    <div class="pb" id="inatBody"></div>
+  </section>
+</main>
+
+<div class="page" id="page" hidden></div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-live="polite"></aside>
+<div class="toast" id="toast" hidden role="status"></div>
+<audio id="aud" preload="none"></audio>
+
+<div class="modal" id="placeSheet" hidden>
+  <div class="box wide" role="dialog" aria-labelledby="plTitle">
+    <div class="dh"><div style="flex:1;min-width:0"><div class="fn">WHERE &lt;GO&gt;</div><h2 id="plTitle">Where and when</h2><div class="sub" id="plNow"></div></div><button class="iconbtn" id="plClose" aria-label="Close">✕</button></div>
+    <div class="field"><label for="plQ">Find a place</label><input type="text" id="plQ" placeholder="Town, county, state, park or hotspot" autocomplete="off" spellcheck="false"></div>
+    <div class="pres" id="plRes"></div>
+    <div class="sec">Quick</div><div class="chips" id="plQuick"></div>
+    <div class="sec">Browse</div>
+    <div class="row" style="border:0"><select class="s" id="plCountry" aria-label="Country"></select><select class="s" id="plState" aria-label="State or province"></select><select class="s" id="plCounty" aria-label="County"></select><button class="btn" id="plUse">Use this</button></div>
+    <div class="sec">Distance around a point</div><div class="chips" id="plDist"></div>
+    <div class="sec">When</div><div class="chips" id="plDays"></div>
+    <div class="row" style="border:0"><span class="dim">or a past month</span><select class="s" id="plMonth" aria-label="Month"></select><select class="s" id="plYear" aria-label="Year"></select></div>
+    <div class="row" style="justify-content:flex-end;border:0;padding:10px 12px 14px"><button class="btn pri" id="plGo">Show birds</button></div>
+  </div>
+</div>
+<div class="modal" id="settings" hidden>
+  <div class="box" role="dialog" aria-labelledby="setTitle">
+    <div class="dh"><div style="flex:1"><div class="fn">SET &lt;GO&gt;</div><h2 id="setTitle">Settings</h2><div class="sub">Saved in this browser only.</div></div><button class="iconbtn" id="setClose" aria-label="Close">✕</button></div>
+    <div class="field"><label for="sKey">eBird API key</label><input type="password" id="sKey" autocomplete="off" spellcheck="false">
+      <div class="help">Free at <a href="https://ebird.org/api/keygen" target="_blank" rel="noopener">ebird.org/api/keygen</a>.</div></div>
+    <div class="field"><span class="lb">Your eBird sightings</span>
+      <div class="help">Download at <a href="https://ebird.org/downloadMyData" target="_blank" rel="noopener">ebird.org/downloadMyData</a>, unzip, choose MyEBirdData.csv. Flags lifers and year needs and drives the pace panel.</div>
+      <input type="file" id="sCsv" accept=".csv,text/csv"><div class="help" id="sCsvStatus"></div></div>
+    <div class="g2">
+      <div class="field"><label for="sGoal">Year goal</label><input type="number" id="sGoal" min="1"></div>
+      <div class="field"><label for="sArea">Year list counts</label><select id="sArea">
+        <option value="ABA">ABA Area</option><option value="NA">North America</option><option value="US">United States</option><option value="world">World</option><option value="home">Home state</option></select></div>
+      <div class="field"><label for="sLat">Home latitude</label><input type="text" id="sLat" inputmode="decimal"></div>
+      <div class="field"><label for="sLng">Home longitude</label><input type="text" id="sLng" inputmode="decimal"></div>
+      <div class="field"><label for="sRegion">Home county code</label><input type="text" id="sRegion" spellcheck="false"><div class="help">Pinellas is US-FL-103.</div></div>
+      <div class="field"><label for="sTide">NOAA tide station</label><input type="text" id="sTide" inputmode="numeric"><div class="help">St. Petersburg 8726520 · Clearwater Beach 8726724.</div></div>
+      <div class="field"><label for="sTheme">Screen</label><select id="sTheme"><option value="amber">Terminal (dark)</option><option value="light">Daylight (for outdoors)</option></select></div>
+      <div class="field"><label for="sProxy">API address (advanced)</label><input type="text" id="sProxy" placeholder="https://api.ebird.org/v2" spellcheck="false"></div>
+    </div>
+    <div class="row" style="justify-content:space-between;border:0;padding:10px 12px 14px">
+      <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" id="sClear">Clear imported sightings</button><button class="btn" id="sDemo" hidden>Load demo</button></span>
+      <button class="btn pri" id="sSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+"use strict";
+/* ================= storage ================= */
+const LS={get(k,d){try{const v=localStorage.getItem('byt.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+          set(k,v){try{localStorage.setItem('byt.'+k,JSON.stringify(v))}catch(e){}}};
+let _db=null;
+function idb(){ if(_db) return _db; _db=new Promise((res,rej)=>{try{const r=indexedDB.open('bigyearterminal',1);
+  r.onupgradeneeded=()=>{const d=r.result; if(!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); if(!d.objectStoreNames.contains('audio')) d.createObjectStore('audio');};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}}); return _db; }
+async function dbGet(k,store='kv'){try{const db=await idb();return await new Promise(res=>{const q=db.transaction(store).objectStore(store).get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(undefined)})}catch(e){return undefined}}
+async function dbSet(k,v,store='kv'){try{const db=await idb();await new Promise((res,rej)=>{const t=db.transaction(store,'readwrite');t.objectStore(store).put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}catch(e){throw e}}
+async function dbDel(k,store='kv'){try{const db=await idb();await new Promise(res=>{const t=db.transaction(store,'readwrite');t.objectStore(store).delete(k);t.oncomplete=res;t.onerror=res})}catch(e){}}
+async function dbClear(store){try{const db=await idb();await new Promise(res=>{const t=db.transaction(store,'readwrite');t.objectStore(store).clear();t.oncomplete=res;t.onerror=res})}catch(e){}}
+
+/* ================= state ================= */
+const DAY=864e5, NOW0=new Date(), YEAR=NOW0.getFullYear();
+const DEF={key:'',lat:27.8398,lng:-82.7912,goal:400,area:'ABA',proxy:'',homeRegion:'US-FL-103',tide:'8726520',theme:'amber'};
+const S={
+  set:Object.assign({},DEF,LS.get('settings',{})),
+  scope:Object.assign({where:'geo',lat:null,lng:null,distMi:20,region:'',back:14,mode:'recent',year:YEAR,month:NOW0.getMonth()+1},LS.get('scope',{})),
+  demo:false, loaded:false, label:'',
+  obs:[], rare:[], hot:[], species:[], spObs:{}, wire:null, wx:null, tides:null, inat:null, county:null, radar:null,
+  tax:null, taxBySci:null, taxList:null, nameIx:null,
+  mine:null, manual:LS.get('manual',{}), targets:new Set(LS.get('targets',[])),
+  needSort:LS.get('needSort','score'), planMode:'plays', callMode:'pack', layer:'pins',
+  audio:[], audioBySp:new Map(), quiz:LS.get('quiz',{}),
+  lights:{EBIRD:'',WX:'',TIDE:'',INAT:''}, dataT:null
+};
+if(S.scope.lat==null){S.scope.lat=S.set.lat;S.scope.lng=S.set.lng}
+const NA_EXTRA=['MX','GT','BZ','SV','HN','NI','CR','PA','CU','JM','HT','DO','PR','BS','KY','TC','VI','VG','AG','KN','LC','VC','GD','BB','TT','DM','AI','MS','BM','GL','AW','CW','BQ','SX','MF','BL','GP','MQ'];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+/* ================= helpers ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const km=mi=>Math.min(50,Math.round(mi*1.609344));
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+function parseDt(s){ if(!s) return null; const [d,t]=String(s).replace('T',' ').split(' '); const [y,m,dd]=d.split('-').map(Number); const [hh,mm]=(t||'0:0').split(':').map(Number); return new Date(y,(m||1)-1,dd||1,hh||0,mm||0); }
+const ageD=s=>{const d=parseDt(s);return d?Math.max(0,(Date.now()-d)/DAY):99};
+function ago(s){ const d=parseDt(s); if(!d) return ''; const h=(Date.now()-d)/36e5;
+  if(h<1) return 'now'; if(h<24&&d.getDate()===new Date().getDate()) return Math.round(h)+'h'; const days=Math.floor((new Date().setHours(0,0,0,0)-new Date(d).setHours(0,0,0,0))/DAY);
+  if(days<=1) return days===1?'1d':Math.round(h)+'h'; if(days<60) return days+'d'; return MONTHS[d.getMonth()]+' '+d.getDate(); }
+function fmtDate(s){ const d=parseDt(s); if(!d) return ''; return DOW[d.getDay()]+' '+MONTHS[d.getMonth()]+' '+d.getDate()+(String(s).includes(' ')?' '+String(s).split(' ')[1]:''); }
+const hm=d=>{let h=d.getHours(),m=d.getMinutes();const ap=h>=12?'p':'a';h=h%12||12;return h+':'+pad(m)+ap};
+function hav(a,b,c,d){ const R=3958.8,r=x=>x*Math.PI/180; const h=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+const distMi=(lat,lng)=>hav(S.scope.lat,S.scope.lng,lat,lng);
+const homeMi=(lat,lng)=>hav(S.set.lat,S.set.lng,lat,lng);
+const driveMin=mi=>Math.round(mi*1.3/(mi<15?26:mi<60?42:58)*60);
+const fmtDrive=m=>m<60?m+' min':Math.floor(m/60)+'h'+pad(m%60);
+function toast(msg,err){ const t=$('#toast'); t.innerHTML=msg; t.className='toast'+(err?' err':''); t.hidden=false; clearTimeout(t._t); t._t=setTimeout(()=>t.hidden=true,err?9000:3800); }
+let busyN=0; function busy(on,frac){ busyN+=on===true?1:on===false?-1:0; $('#busy').hidden=busyN<=0; $('#busyBar').style.width=(frac!=null?Math.round(frac*100):(busyN>0?35:0))+'%'; }
+function light(k,v){ S.lights[k]=v; $('#lights').innerHTML=Object.entries(S.lights).map(([n,s])=>'<span class="'+s+'" title="'+n+': '+(s||'idle')+'">'+n+'</span>').join(''); }
+const norm=o=>({c:o.speciesCode,n:o.comName,s:o.sciName,loc:o.locId,ln:o.locName,lat:o.lat,lng:o.lng,dt:o.obsDt,cnt:o.howMany??null,sub:o.subId,valid:o.obsValid,rev:o.obsReviewed,co:o.subnational2Name||o.subnational1Name||''});
+function compass(deg){ return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(((deg%360)+360)%360/22.5)%16]; }
+
+/* ================= eBird API ================= */
+const memCache=new Map();
+class ApiError extends Error{}
+async function eb(path,params,opt={}){
+  if(S.demo) return demoApi(path,params||{});
+  if(!S.set.key) throw new ApiError('Add your eBird API key in Settings (SET).');
+  const base=(S.set.proxy||'https://api.ebird.org/v2').replace(/\/$/,'');
+  const qs=new URLSearchParams(); Object.entries(params||{}).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')qs.set(k,v)});
+  const url=base+path+(qs.toString()?'?'+qs:'');
+  if(memCache.has(url)) return memCache.get(url);
+  if(opt.persist){ const hit=await dbGet('h:'+url); if(hit!==undefined){ memCache.set(url,Promise.resolve(hit)); return hit; } }
+  const p=(async()=>{
+    let r;
+    try{ r=await fetch(url,{headers:{'X-eBirdApiToken':S.set.key}}); }
+    catch(e){ light('EBIRD','bad'); throw new ApiError("Couldn't reach eBird. If every search fails from the hosted page, eBird may be blocking browser requests; see the README for the relay fix."); }
+    if(r.status===401||r.status===403){ light('EBIRD','bad'); throw new ApiError('eBird rejected the API key. Check it in Settings.'); }
+    if(r.status===404) return opt.allow404?[]:Promise.reject(new ApiError('eBird has no data for that request.'));
+    if(r.status===429) throw new ApiError('eBird is rate-limiting requests. Wait a minute and try again.');
+    if(!r.ok) throw new ApiError('eBird returned an error ('+r.status+').');
+    light('EBIRD','ok');
+    const ct=r.headers.get('content-type')||'';
+    const data=ct.includes('json')?await r.json():await r.text();
+    if(opt.persist) dbSet('h:'+url,data).catch(()=>{});
+    return data;
+  })();
+  memCache.set(url,p); p.catch(()=>memCache.delete(url));
+  return p;
+}
+async function pool(fns,n,onProg){ const out=new Array(fns.length); let i=0,done=0;
+  async function w(){ while(i<fns.length){ const k=i++; try{out[k]=await fns[k]()}catch(e){out[k]=e} done++; onProg&&onProg(done/fns.length);} }
+  await Promise.all(Array.from({length:Math.min(n,fns.length)},w)); return out; }
+async function getJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+
+/* ================= taxonomy ================= */
+const nk=s=>String(s||'').toLowerCase().replace(/[’`]/g,"'").replace(/'/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+function setTax(list){
+  S.taxList=list; S.tax=new Map(list.map(t=>[t.c,t])); S.taxBySci=new Map(list.map(t=>[t.s.toLowerCase(),t]));
+  S.nameIx=new Map(); for(const t of list){ S.nameIx.set(nk(t.n),t.c); }
+}
+async function loadTax(){
+  if(S.tax) return;
+  let list=await dbGet('taxonomy');
+  if(!list||!list.length){
+    if(!S.set.key) return;
+    const raw=await eb('/ref/taxonomy/ebird',{fmt:'json',cat:'species'});
+    list=raw.map(t=>({c:t.speciesCode,n:t.comName,s:t.sciName,o:t.taxonOrder,f:t.familyComName||''}));
+    dbSet('taxonomy',list).catch(()=>{});
+  }
+  setTax(list);
+}
+const tname=c=>S.tax&&S.tax.get(c)?S.tax.get(c).n:c;
+const torder=c=>S.tax&&S.tax.get(c)?S.tax.get(c).o:1e9;
+
+/* ================= personal list ================= */
+function areaOk(st){ const cc=(st||'').slice(0,2); const a=S.set.area;
+  if(a==='world') return true; if(a==='US') return cc==='US'; if(a==='ABA') return ['US','CA','PM'].includes(cc);
+  if(a==='NA') return ['US','CA','PM'].includes(cc)||NA_EXTRA.includes(cc);
+  if(a==='home') return st===(S.set.homeRegion||'').split('-').slice(0,2).join('-'); return true; }
+let ysCache=null;
+function yearFirsts(){ if(ysCache) return ysCache; const m=new Map(); const y=String(YEAR);
+  const Y=S.mine&&S.mine.years[y]; if(Y) for(const [c,sts] of Object.entries(Y)){ let best=null; for(const [st,d] of Object.entries(sts)) if(areaOk(st)&&(!best||d<best)) best=d; if(best) m.set(c,best); }
+  for(const [c,d] of Object.entries(S.manual[y]||{})) if(!m.has(c)) m.set(c,typeof d==='string'?d:ymd(new Date()));
+  return ysCache=m; }
+const yearSet=()=>yearFirsts();
+const haveMine=()=>!!S.mine||Object.keys(S.manual[String(YEAR)]||{}).length>0;
+const isLifer=c=>S.mine?!(c in S.mine.life)&&!yearSet().has(c):false;
+const isNeed=c=>haveMine()?!yearSet().has(c):false;
+const status=c=>isLifer(c)?'lifer':isNeed(c)?'need':'have';
+const RANK={lifer:0,need:1,have:2};
+function tags(c){ let h=''; const st=status(c); if(st==='lifer') h+='<span class="tag lifer">LIFER</span>'; else if(st==='need') h+='<span class="tag need">NEED</span>';
+  if(S.targets.has(c)) h+='<span class="tag tgt">TGT</span>'; return h; }
+const cls=c=>{const st=status(c); return st==='have'?(S.targets.has(c)?'tgt':'wh'):st;};
+function cssv(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function colorFor(c){ const st=status(c); if(st==='lifer') return cssv('--lifer'); if(st==='need') return cssv('--need'); if(S.targets.has(c)) return cssv('--target'); return cssv('--have'); }
+
+function parseCSV(text){ const rows=[]; let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false } else f+=ch; }
+    else if(ch==='"') q=true; else if(ch===','){row.push(f);f=''} else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n') i++; row.push(f);rows.push(row);row=[];f=''; } else f+=ch; }
+  if(f!==''||row.length){row.push(f);rows.push(row)} return rows; }
+function buildMine(text){
+  const rows=parseCSV(text.replace(/^﻿/,'')); const h=rows.shift().map(x=>x.trim());
+  const ix=n=>h.indexOf(n); const iSci=ix('Scientific Name'), iSt=ix('State/Province'), iDate=ix('Date'), iLoc=ix('Location'), iCo=ix('County'), iLat=ix('Latitude'), iLng=ix('Longitude'), iCnt=ix('Count'), iSub=ix('Submission ID');
+  if(iSci<0||iDate<0) throw new Error("That file doesn't look like an eBird data export (MyEBirdData.csv).");
+  const life={}, years={}, sight={}, locs=[], locIx=new Map(); let n=0, skipped=0;
+  for(const r of rows){ if(r.length<=Math.max(iSci,iDate)) continue;
+    const sci=(r[iSci]||'').trim().toLowerCase(); if(!sci) continue;
+    let t=S.taxBySci.get(sci); if(!t&&!/ sp\.|\/| x /.test(sci)) t=S.taxBySci.get(sci.split(' ').slice(0,2).join(' '));
+    if(!t){skipped++;continue}
+    const d=r[iDate], y=d.slice(0,4), st=(r[iSt]||'').trim();
+    if(!life[t.c]||d<life[t.c]) life[t.c]=d;
+    const Y=years[y]||(years[y]={}); const o=Y[t.c]||(Y[t.c]={}); if(!o[st]||d<o[st]) o[st]=d; n++;
+    if(iLoc>=0){ const ln=(r[iLoc]||'').trim(), lk=ln+'|'+st; let li=locIx.get(lk); if(li===undefined){ li=locs.length; locIx.set(lk,li); locs.push([ln,st,(r[iCo]||'').trim(),parseFloat(r[iLat]),parseFloat(r[iLng])]); }
+      (sight[t.c]||(sight[t.c]=[])).push([d,li,iCnt>=0?r[iCnt]:'',iSub>=0?r[iSub]:'']); }
+  }
+  return {v:3,life,years,sight,locs,rows:n,skipped,imported:new Date().toISOString()};
+}
+
+/* ================= main load ================= */
+function scopeLabel(){ const sc=S.scope;
+  const nm=sc.label||(sc.where==='geo'?(Math.abs(sc.lat-S.set.lat)<.01&&Math.abs(sc.lng-S.set.lng)<.01?'Home':sc.lat.toFixed(2)+', '+sc.lng.toFixed(2)):sc.region);
+  const where=sc.where==='geo'?nm+' · '+sc.distMi+' mi':nm;
+  const when=sc.mode==='recent'?(sc.back===1?'today':'last '+sc.back+' days'):(sc.month==='all'?'all of '+sc.year:MONTHS[sc.month-1]+' '+sc.year)+(sc.where==='geo'?' (county)':'');
+  return {where,when}; }
+function asOf(t){ const d=new Date(t); const same=new Date().toDateString()===d.toDateString(); return (same?'':DOW[d.getDay()]+' ')+pad(d.getHours())+':'+pad(d.getMinutes()); }
+function renderScope(){ const l=scopeLabel(); const off=!S.demo&&!navigator.onLine;
+  $('#scope').innerHTML='<span><b>'+esc(l.where)+'</b></span><span><b>'+esc(l.when)+'</b></span>'+
+    (off?'<span class="asof off">OFFLINE'+(S.dataT?' · DATA <b>'+asOf(S.dataT)+'</b>':'')+'</span>':S.dataT&&!S.demo?'<span class="asof">AS OF <b>'+asOf(S.dataT)+'</b></span>':''); }
+const regionOf=()=>S.scope.where==='region'?S.scope.region:(S.scope.county||S.set.homeRegion||'US-FL-103');
+
+async function refresh(){
+  const sc=S.scope;
+  if(!S.set.key&&!S.demo){ openSettings(); return; }
+  if(!S.demo&&!navigator.onLine){ renderScope(); toast(S.loaded?'No signal. Showing the search saved at '+asOf(S.dataT)+'.':'No signal, and no saved search on this phone yet.',!S.loaded); return; }
+  busy(true); light('EBIRD','wait'); renderScope();
+  try{
+    await loadTax().catch(()=>{});
+    let obs=[],rare=[],hot=[];
+    if(sc.mode==='recent'){
+      if(sc.where==='geo'){
+        const p={lat:sc.lat.toFixed(4),lng:sc.lng.toFixed(4),dist:km(sc.distMi),back:sc.back};
+        [obs,rare,hot]=await Promise.all([eb('/data/obs/geo/recent',{...p,includeProvisional:true}),
+          eb('/data/obs/geo/recent/notable',{...p,detail:'full'}).catch(()=>[]),
+          eb('/ref/hotspot/geo',{lat:p.lat,lng:p.lng,dist:p.dist,back:30,fmt:'json'}).catch(()=>[])]);
+      } else {
+        const rc=sc.region;
+        [obs,rare,hot]=await Promise.all([eb('/data/obs/'+rc+'/recent',{back:sc.back,includeProvisional:true}),
+          eb('/data/obs/'+rc+'/recent/notable',{back:sc.back,detail:'full'}).catch(()=>[]),
+          rc.length>2?eb('/ref/hotspot/'+rc,{back:30,fmt:'json'}).catch(()=>[]):Promise.resolve([])]);
+      }
+    } else {
+      const rc=regionOf(); const dates=[];
+      const months=sc.month==='all'?[...Array(12).keys()].map(i=>i+1):[Number(sc.month)];
+      for(const m of months){ const dim=new Date(sc.year,m,0).getDate(); for(let d=1;d<=dim;d++){ const dt=new Date(sc.year,m-1,d); if(dt<=new Date()) dates.push([sc.year,m,d]); } }
+      if(!dates.length) throw new ApiError("That month hasn't happened yet.");
+      const old=([y,m,d])=>(Date.now()-new Date(y,m-1,d))>7*DAY;
+      const res=await pool(dates.map(dt=>()=>eb('/data/obs/'+rc+'/historic/'+dt.join('/'),{rank:'mrec',detail:'simple',cat:'species',includeProvisional:true},{persist:old(dt),allow404:true})),4,f=>busy(null,f));
+      if(res.length&&res.every(r=>r instanceof Error)) throw res[0];
+      res.forEach(r=>{ if(Array.isArray(r)) obs.push(...r) });
+      hot=rc.length>2?await eb('/ref/hotspot/'+rc,{fmt:'json'}).catch(()=>[]):[];
+    }
+    S.obs=obs.map(norm); S.rare=rare.map(norm); S.hot=hot; S.spObs={}; S.loaded=true; S.wire=null; S.inat=null; S.dataT=Date.now(); saveSnap();
+    buildSpecies(); renderAll(); drawMap(true);
+    if(!S.obs.length) toast('No sightings came back for that search.');
+    // second wave: detail for needs, plus outside feeds
+    loadNeedDetail(); loadWire(); loadInat(); loadCounty();
+  }catch(e){ toast(S.loaded&&S.dataT&&!navigator.onLine?'Lost signal. Still showing the search from '+asOf(S.dataT)+'.':esc(e.message||String(e)),true); }
+  finally{ busy(false); renderScope(); }
+  loadWx(); loadTides();
+}
+function buildSpecies(){
+  const m=new Map(); const rc=new Set(S.rare.map(r=>r.c));
+  for(const o of S.obs.concat(S.rare)){ let g=m.get(o.c); if(!g){ g={c:o.c,n:o.n,s:o.s,obs:[],days:new Set(),locs:new Set(),last:null,near:Infinity}; m.set(o.c,g); }
+    g.obs.push(o); g.days.add((o.dt||'').slice(0,10)); g.locs.add(o.loc); if(!g.last||o.dt>g.last.dt) g.last=o;
+    const d=distMi(o.lat,o.lng); if(d<g.near) g.near=d; }
+  S.species=[...m.values()].map(g=>Object.assign(g,{rare:rc.has(g.c),o:torder(g.c)}));
+}
+async function loadNeedDetail(){
+  if(S.scope.mode!=='recent'||!haveMine()) { renderAll(); return; }
+  const sc=S.scope;
+  const codes=S.species.filter(g=>isNeed(g.c)||S.targets.has(g.c)).sort((a,b)=>RANK[status(a.c)]-RANK[status(b.c)]).slice(0,60).map(g=>g.c);
+  for(const c of S.targets) if(!codes.includes(c)&&codes.length<70) codes.push(c);
+  if(!codes.length) return;
+  busy(true);
+  const fetch1=c=>sc.where==='geo'?eb('/data/obs/geo/recent/'+c,{lat:sc.lat.toFixed(4),lng:sc.lng.toFixed(4),dist:km(sc.distMi),back:30,includeProvisional:true})
+                                 :eb('/data/obs/'+sc.region+'/recent/'+c,{back:30,includeProvisional:true});
+  let n=0;
+  await pool(codes.map(c=>async()=>{ const r=await fetch1(c); S.spObs[c]=r.map(norm); if(++n%8===0){ renderNeed(); renderPlan(); renderTicker(); } }),4,f=>busy(null,f));
+  busy(false); renderNeed(); renderPlan(); renderTicker(); renderTgt(); drawMap(); saveSnap();
+}
+function spStats(c){
+  const list=S.spObs[c]||(S.species.find(g=>g.c===c)||{obs:[]}).obs;
+  let n3=0,n7=0,n30=0,first=null,last=null; const days=new Set();
+  for(const o of list){ const a=ageD(o.dt); if(a<=30){n30++; days.add(o.dt.slice(0,10));} if(a<=7) n7++; if(a<=3) n3++; if(!first||o.dt<first) first=o.dt; if(!last||o.dt>last.dt) last=o; }
+  const prior=Math.max(0,n30-n7); const r7=n7/7, rp=prior/23;
+  const trend=n30<2?'new':r7>rp*1.25?'up':r7<rp*0.75?'down':'flat';
+  return {n3,n7,n30,days:days.size,prob:Math.min(1,days.size/30),first,last,detailed:!!S.spObs[c],trend,isNew:first&&ageD(first)<=4&&n30<=3};
+}
+
+/* ================= panels ================= */
+function renderAll(){ ysCache=null; renderScope(); renderNeed(); renderPace(); renderPlan(); renderRare(); renderWx(); renderTgt(); renderCall(); renderWire(); renderInat(); renderTicker(); }
+function needCta(){
+  if(!S.set.key&&!S.demo) return '<div class="empty"><h3>Connect to eBird</h3>Add your free eBird API key and import your eBird data in Settings, then press GO.<div style="margin-top:8px"><button class="btn pri" onclick="openSettings()">Open settings</button></div></div>';
+  return '<div class="empty"><h3>Ready</h3>Press GO, or type a function like <span class="amb">PLAN</span> or a bird name in the command line.</div>';
+}
+function trendCell(st){ if(st.trend==='new') return '<span class="amb">NEW</span>'; if(st.trend==='up') return '<span class="up">▲</span>'; if(st.trend==='down') return '<span class="down">▼</span>'; return '<span class="dim">■</span>'; }
+function needScore(g,st){ const w=status(g.c)==='lifer'?3:status(g.c)==='need'?2:0.4; const tg=S.targets.has(g.c)?1.4:1;
+  const rec=Math.exp(-ageD(g.last.dt)/5); const freq=st.detailed?Math.min(1,0.25+st.n7/4):0.5;
+  return w*tg*(0.4+rec)*freq/(1+driveMin(g.near)/60); }
+function renderNeed(){
+  const B=$('#needBody');
+  if(!S.loaded){ B.innerHTML=needCta(); $('#needSub').textContent=''; return; }
+  const show=$('#needShow').value;
+  let rows=S.species.filter(g=>show==='all'||(show==='life'?isLifer(g.c):isNeed(g.c)));
+  const data=rows.map(g=>{ const st=spStats(g.c); return {g,st,score:needScore(g,st)}; });
+  const so=S.needSort;
+  const cmp={score:(a,b)=>b.score-a.score,name:(a,b)=>a.g.n.localeCompare(b.g.n),last:(a,b)=>b.g.last.dt.localeCompare(a.g.last.dt),n7:(a,b)=>b.st.n7-a.st.n7||b.st.n30-a.st.n30,dist:(a,b)=>a.g.near-b.g.near,tax:(a,b)=>a.g.o-b.g.o}[so]||((a,b)=>b.score-a.score);
+  data.sort(cmp);
+  const nl=data.filter(d=>isLifer(d.g.c)).length;
+  $('#needSub').textContent=haveMine()?data.length+' '+(show==='all'?'species':show==='life'?'lifers':'year needs')+' in area'+(show==='year'&&nl?' · '+nl+' lifers':''):'import your eBird data to flag needs';
+  if(!haveMine()&&show!=='all'){ B.innerHTML='<div class="empty"><h3>No personal list yet</h3>Import MyEBirdData.csv in Settings so the monitor knows what you still need. Switch to <span class="amb">All species</span> to see everything meanwhile.</div>'; return; }
+  const th=(k,t,r)=>'<th data-sort="'+k+'" class="'+(r?'r':'')+'">'+t+(so===k?' ▾':'')+'</th>';
+  B.innerHTML=data.length?'<table class="t"><thead><tr>'+th('name','SPECIES')+th('last','LAST',1)+th('n7','7D',1)+'<th class="r">30D</th><th class="r">Δ</th>'+th('dist','MI',1)+th('score','SCORE',1)+'</tr></thead><tbody>'+
+    data.map(({g,st,score})=>'<tr data-sp="'+esc(g.c)+'"><td><span class="nm '+cls(g.c)+'">'+esc(g.n)+'</span>'+(g.rare?'<span class="tag down">RARE</span>':'')+(S.targets.has(g.c)?'<span class="tag tgt">TGT</span>':'')+
+      '<div class="sm">'+esc(g.last.ln)+'</div></td><td class="r">'+ago(g.last.dt)+'</td><td class="r">'+(st.detailed?st.n7:'·')+'</td><td class="r">'+(st.detailed?st.n30:'·')+'</td><td class="r">'+(st.detailed?trendCell(st):'')+'</td>'+
+      '<td class="r">'+(isFinite(g.near)?g.near.toFixed(1):'')+'</td><td class="r amb">'+(score*10).toFixed(1)+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="note">7D / 30D = locations reporting it in the last 7 / 30 days. Δ compares the last week with the three before. SCORE weighs lifers over year needs, recency, how often it\'s reported and drive time.</div>'
+    :'<div class="empty">'+(show==='year'?'No year needs reported in this area and window. Widen the radius (R 30) or days (D 30).':'Nothing here.')+'</div>';
+}
+
+/* pace */
+function renderPace(){
+  const B=$('#paceBody'); const goal=Number(S.set.goal)||400;
+  if(!haveMine()){ B.innerHTML='<div class="empty"><h3>No personal list</h3>Import your eBird data in Settings to track pace to '+goal+'.</div>'; $('#paceSub').textContent=''; return; }
+  const yf=[...yearFirsts().values()].sort(); const n=yf.length;
+  const now=new Date(), start=new Date(YEAR,0,1), end=new Date(YEAR+1,0,1);
+  const frac=(now-start)/(end-start), daysLeft=Math.max(1,Math.ceil((end-now)/DAY));
+  const pace=goal*frac, delta=n-pace;
+  const since=d=>yf.filter(x=>(now-parseDt(x))/DAY<=d).length;
+  const a7=since(7), a30=since(30);
+  const proj=Math.round(n+a30/30*daysLeft); const need=Math.max(0,goal-n); const perWk=need/daysLeft*7;
+  const areaName={ABA:'ABA',NA:'N. America',US:'US',world:'World',home:'Home state'}[S.set.area];
+  $('#paceSub').textContent=YEAR+' · '+areaName+' list';
+  let county='';
+  if(S.county){ const left=S.county.filter(c=>!yearSet().has(c)); county='<div class="note">'+esc(S.county.region)+' all-time list: '+S.county.length+' species · <span class="need">'+left.length+' not on your '+YEAR+' list</span></div>'; }
+  B.innerHTML='<div style="padding:8px 8px 6px"><div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap"><div class="big">'+n+'<small> / '+goal+'</small></div>'+
+    '<div><div class="'+(delta>=0?'up':'down')+'" style="font-weight:600;font-size:15px">'+(delta>=0?'+':'')+delta.toFixed(0)+' vs pace</div><div class="dim" style="font-size:11.5px">even pace today: '+pace.toFixed(0)+'</div></div></div>'+
+    '<div class="track"><i style="width:'+Math.min(100,n/goal*100)+'%"></i><u style="left:'+(frac*100)+'%"></u></div></div>'+
+    '<div class="kpis"><div><small>Need</small><b>'+need+'</b></div><div><small>Per week</small><b class="'+(a30/30*7>=perWk?'up':'down')+'">'+perWk.toFixed(1)+'</b></div><div><small>Days left</small><b>'+daysLeft+'</b></div>'+
+    '<div><small>Last 7 d</small><b>+'+a7+'</b></div><div><small>Last 30 d</small><b>+'+a30+'</b></div><div><small>Projected</small><b class="'+(proj>=goal?'up':'down')+'">'+proj+'</b></div></div>'+
+    '<canvas class="spark" id="paceSpark" aria-label="Cumulative year list against even pace"></canvas>'+county+
+    '<div class="note">Projection carries your last-30-day rate to Dec 31. Dashed line is even pace.</div>';
+  requestAnimationFrame(()=>drawSpark(yf,goal));
+}
+function drawSpark(yf,goal){
+  const cv=$('#paceSpark'); if(!cv) return; const dpr=window.devicePixelRatio||1; const W=cv.clientWidth,H=cv.clientHeight; if(!W) return;
+  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr);
+  const x=d=>(parseDt(d)-new Date(YEAR,0,1))/(365*DAY)*W, y=v=>H-4-(v/goal)*(H-10);
+  g.strokeStyle=cssv('--line2'); g.setLineDash([3,3]); g.beginPath(); g.moveTo(0,y(0)); g.lineTo(W,y(goal)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle=cssv('--amber'); g.lineWidth=1.6; g.beginPath(); g.moveTo(0,y(0)); yf.forEach((d,i)=>{ g.lineTo(x(d),y(i)); g.lineTo(x(d),y(i+1)); }); g.lineTo(x(ymd(new Date())),y(yf.length)); g.stroke();
+  const nx=x(ymd(new Date())); g.fillStyle=cssv('--ink'); g.fillRect(nx-1,y(yf.length)-3,3,6);
+  g.fillStyle=cssv('--dim'); g.font='10px IBM Plex Mono, monospace'; ['Jan','Apr','Jul','Oct'].forEach((m,i)=>g.fillText(m,i*W/4+2,H-1));
+}
+
+/* strategy */
+function locAgg(){
+  const m=new Map(); const add=(o,c)=>{ if(!o.loc) return; let L=m.get(o.loc); if(!L){ L={loc:o.loc,ln:o.ln,lat:o.lat,lng:o.lng,sp:new Map(),last:''}; m.set(o.loc,L); }
+    const prev=L.sp.get(c); if(!prev||o.dt>prev.dt) L.sp.set(c,o); if(o.dt>L.last) L.last=o.dt; };
+  for(const g of S.species){ if(!(isNeed(g.c)||S.targets.has(g.c))) continue;
+    const list=S.spObs[g.c]||g.obs; for(const o of list) if(ageD(o.dt)<=10) add(o,g.c); }
+  return [...m.values()].map(L=>{ let s=0; const why=[];
+    for(const [c,o] of L.sp){ const w=(isLifer(c)?3:isNeed(c)?2:0.6)*(S.targets.has(c)?1.4:1); const a=ageD(o.dt); s+=w*Math.exp(-a/3.5); }
+    const mi=homeMi(L.lat,L.lng), dm=driveMin(mi);
+    return Object.assign(L,{raw:s,score:s/(1+dm/75),mi,dm}); }).filter(L=>L.sp.size).sort((a,b)=>b.score-a.score);
+}
+const COAST=/beach|fort de soto|desoto|spit|bayou|key\b|keys|island|shore|flats|pier|inlet|pass\b|causeway|bay\b|harbor|harbour|point|preserve/i;
+function bestWindow(L){
+  const out=[]; const wx=S.wx; const d=nextGoodDay();
+  if(d) out.push('Best day: <b>'+d.label+'</b>'+(d.why?' ('+d.why+')':''));
+  if(wx&&wx.days&&d&&wx.days[d.i]) out.push('sunrise '+hm(parseDt(wx.days[d.i].sunrise)));
+  if(COAST.test(L.ln)&&Array.isArray(S.tides)&&S.tides.length){ const day=d&&wx.days[d.i]?wx.days[d.i].date:ymd(new Date());
+    const hs=S.tides.filter(t=>t.type==='H'&&parseDt(t.t)>new Date()); const hi=hs.find(t=>t.t.startsWith(day)&&+t.t.slice(11,13)>=5&&+t.t.slice(11,13)<=15)||hs.find(t=>t.t.startsWith(day))||hs[0];
+    if(hi) out.push('high tide '+fmtDate(hi.t)+' (shorebirds pack the roosts ±2 h)'); }
+  return out.join(' · ');
+}
+function nextGoodDay(){
+  const wx=S.wx; if(!wx||!wx.days) return null;
+  const cands=wx.days.map((d,i)=>({d,i})).filter(x=>parseDt(x.d.date)>=new Date(new Date().setHours(0,0,0,0)));
+  if(!cands.length) return null;
+  let best=null; for(const x of cands){ let s=3-(x.d.rain/40)+(x.d.mig||0)*1.2; if(x.i===0&&new Date().getHours()>=11) s-=2; if(!best||s>best.s) best={s,i:x.i,d:x.d}; }
+  const dd=parseDt(best.d.date); const today=new Date().getDate()===dd.getDate();
+  return {i:best.i,label:today?'today':DOW[dd.getDay()],why:[best.d.mig>=2?'migrants likely':'',best.d.rain>=50?best.d.rain+'% rain':''].filter(Boolean).join(', ')};
+}
+function renderPlan(){
+  const B=$('#planBody');
+  document.querySelectorAll('[data-plan]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.plan===S.planMode)));
+  if(!S.loaded){ B.innerHTML=needCta(); return; }
+  if(S.planMode==='hot') return renderHot();
+  const plays=locAgg().slice(0,8);
+  const top=plays[0];
+  const brief=[];
+  if(!haveMine()) brief.push('Import your eBird data so plays rank by what you still need.');
+  if(top){ const sp=[...top.sp.keys()]; brief.push('<b>Top play:</b> '+esc(top.ln)+' — '+sp.length+' of your needs in the last 10 days ('+sp.slice(0,3).map(c=>esc(tname(c))).join(', ')+(sp.length>3?'…':'')+'), '+fmtDrive(top.dm)+' from home.'); }
+  const fr=S.wx&&S.wx.days&&S.wx.days.find(d=>d.front&&parseDt(d.date)>=new Date(new Date().setHours(0,0,0,0)));
+  if(fr){ const dd=parseDt(fr.date); brief.push('<b>Front:</b> '+compass(fr.dir)+' winds '+fr.wmax+' mph '+DOW[dd.getDay()]+' with rising pressure. '+(isFallSeason()?'In fall that grounds migrants — check coastal woodlots the morning after.':'Northerly flow slows spring arrivals; birds pile up on the south side.')); }
+  const lif=S.species.filter(g=>isLifer(g.c));
+  if(lif.length) brief.push('<b>Lifers in range:</b> '+lif.slice(0,4).map(g=>'<span class="lifer">'+esc(g.n)+'</span>').join(', ')+(lif.length>4?' +'+(lif.length-4):''));
+  const maxs=plays.length?plays[0].score:1;
+  $('#planSub').textContent=plays.length?plays.length+' plays ranked from home':'';
+  B.innerHTML=(brief.length?'<div class="brief">'+brief.join('<br>')+'</div>':'')+(plays.length?plays.map((L,i)=>{
+    const sp=[...L.sp.entries()].sort((a,b)=>RANK[status(a[0])]-RANK[status(b[0])]||b[1].dt.localeCompare(a[1].dt));
+    return '<div class="play" data-hot="'+esc(L.loc)+'"><div class="hd"><span class="rk">'+(i+1)+'</span><span class="nm">'+esc(L.ln)+'</span><span class="sc"><span class="bar" style="width:'+Math.max(4,Math.round(L.score/maxs*44))+'px"></span>'+(L.score*10).toFixed(1)+'</span></div>'+
+      '<div class="sp">'+sp.map(([c,o])=>'<span class="'+cls(c)+'">'+esc(tname(c))+'</span> <span class="dim">'+ago(o.dt)+'</span>').join(' · ')+'</div>'+
+      '<div class="why">'+L.mi.toFixed(0)+' mi · ~'+fmtDrive(L.dm)+' drive'+(i<3?' · '+bestWindow(L):'')+'</div></div>'; }).join('')
+    :'<div class="empty">'+(haveMine()?'None of your needs were reported in this area in the last 10 days. Try R 40 or REG US-FL.':'No plays yet.')+'</div>');
+}
+function renderHot(){
+  const B=$('#planBody');
+  if(!S.hot.length){ B.innerHTML='<div class="empty">No hotspot list for this area (a whole country has too many; pick a state or county).</div>'; return; }
+  const act=new Map(); S.obs.forEach(o=>{ const a=act.get(o.loc)||{n:0,need:0}; a.n++; if(isNeed(o.c)) a.need++; act.set(o.loc,a); });
+  const hs=S.hot.map(h=>Object.assign({},h,{a:act.get(h.locId)||{n:0,need:0},d:homeMi(h.lat,h.lng)})).sort((a,b)=>(b.a.need-a.a.need)||(b.a.n-a.a.n)||(b.numSpeciesAllTime||0)-(a.numSpeciesAllTime||0)).slice(0,300);
+  B.innerHTML='<table class="t"><thead><tr><th>HOTSPOT</th><th class="r">SP</th><th class="r">NEED</th><th class="r">ALL</th><th class="r">MI</th></tr></thead><tbody>'+
+    hs.map(h=>'<tr data-hot="'+esc(h.locId)+'"><td class="nm">'+esc(h.locName)+'<div class="sm">'+(h.latestObsDt?'last '+ago(h.latestObsDt):'')+'</div></td><td class="r">'+(h.a.n||'')+'</td><td class="r need">'+(h.a.need||'')+'</td><td class="r dim">'+(h.numSpeciesAllTime||'')+'</td><td class="r">'+h.d.toFixed(0)+'</td></tr>').join('')+'</tbody></table>';
+}
+
+/* rarities */
+function renderRare(){
+  const B=$('#rareBody');
+  if(!S.loaded){ B.innerHTML=needCta(); return; }
+  if(S.scope.mode!=='recent'){ B.innerHTML='<div class="empty">eBird flags rarities for recent searches only (D 1–30).</div>'; return; }
+  const seen=new Set(); const items=S.rare.slice().sort((a,b)=>b.dt.localeCompare(a.dt)).filter(r=>{const k=r.c+'|'+r.loc; if(seen.has(k)) return false; seen.add(k); return true;});
+  $('#rareSub').textContent=new Set(items.map(r=>r.c)).size+' species · '+items.length+' reports';
+  B.innerHTML=items.length?'<table class="t"><thead><tr><th>SPECIES</th><th class="r">AGE</th><th>STATUS</th><th class="r">MI</th></tr></thead><tbody>'+items.map(r=>{
+    const st=r.rev?(r.valid?'<span class="up">CONFIRMED</span>':'<span class="down">NOT ACC</span>'):'<span class="dim">UNREVIEWED</span>';
+    return '<tr data-sub="'+esc(r.sub)+'" data-loc="'+esc(r.loc)+'" data-ln="'+esc(r.ln)+'"><td><span class="nm '+cls(r.c)+'">'+esc(r.n)+'</span>'+tags(r.c)+'<div class="sm">'+esc(r.ln)+(r.cnt?' · '+r.cnt:'')+'</div></td><td class="r">'+ago(r.dt)+'</td><td class="sm">'+st+'</td><td class="r">'+distMi(r.lat,r.lng).toFixed(0)+'</td></tr>'; }).join('')+'</tbody></table>'
+    :'<div class="empty">No rarities flagged in this area and window.</div>';
+}
+
+/* ticker */
+function renderTicker(){
+  const items=[];
+  const seen=new Set();
+  for(const r of S.rare.slice().sort((a,b)=>b.dt.localeCompare(a.dt))){ if(seen.has(r.c)) continue; seen.add(r.c);
+    items.push('<span class="it '+(isNeed(r.c)?'need':'down')+'" data-sp="'+esc(r.c)+'">'+(isLifer(r.c)?'◆ ':'▲ ')+'<b>'+esc(r.n.toUpperCase())+'</b> '+esc(r.ln)+' '+ago(r.dt)+(r.rev&&r.valid?' ✓':'')+'</span>'); }
+  for(const g of S.species){ if(seen.has(g.c)||!isNeed(g.c)) continue; const st=spStats(g.c); if(!(st.isNew||st.n3>0)) continue; seen.add(g.c);
+    items.push('<span class="it '+cls(g.c)+'" data-sp="'+esc(g.c)+'">'+(st.trend==='up'||st.isNew?'▲':'■')+' <b>'+esc(g.n.toUpperCase())+'</b> '+st.n7+' LOC/7D '+esc(g.last.ln)+' '+ago(g.last.dt)+'</span>'); }
+  const run=$('#tickerRun');
+  run.innerHTML=items.length?items.join(''):'<span class="it dim">'+(S.loaded?'NO RARITIES OR FRESH NEEDS IN THIS AREA':'RARE &amp; NEW-NEED WIRE · run a search to fill the tape')+'</span>';
+  run.style.setProperty('--dur',Math.max(30,items.length*9)+'s');
+}
+
+/* target watchlist */
+function renderTgt(){
+  const B=$('#tgtBody');
+  const inView=new Map(S.species.map(g=>[g.c,g]));
+  const arr=[...S.targets].map(c=>({c,g:inView.get(c),st:spStats(c)})).sort((a,b)=>(b.g?1:0)-(a.g?1:0)||torder(a.c)-torder(b.c));
+  $('#tgtSub').textContent=S.targets.size+' targets';
+  let h='<div class="row"><input class="s" id="tAdd" list="taxdl" placeholder="Add target species" style="flex:1;min-width:140px" aria-label="Add target"><button class="btn" id="tAddBtn">ADD</button><button class="btn" id="tHeat">HEAT</button></div>';
+  if(!arr.length) h+='<div class="empty">Add the birds you are chasing (or type <span class="amb">TGT ADD</span> plus a name). They get starred in every panel and boosted in the strategy.</div>';
+  else h+='<table class="t"><thead><tr><th>TARGET</th><th class="r">LAST</th><th class="r">7D</th><th class="r">30D</th><th class="r">MI</th></tr></thead><tbody>'+arr.map(t=>'<tr data-sp="'+esc(t.c)+'"><td><span class="nm '+cls(t.c)+'">'+esc(tname(t.c))+'</span><div class="sm">'+(t.g?esc(t.g.last.ln):'not in this search')+'</div></td>'+
+    '<td class="r">'+(t.g?ago(t.g.last.dt):'—')+'</td><td class="r">'+(t.st.detailed?t.st.n7:'·')+'</td><td class="r">'+(t.st.detailed?t.st.n30:'·')+'</td><td class="r">'+(t.g?t.g.near.toFixed(0):'')+'</td></tr>').join('')+'</tbody></table>';
+  B.innerHTML=h; ensureDatalist();
+  const add=()=>{ const t=findSpecies($('#tAdd').value); if(!t){ toast(S.taxList?'Pick a species from the suggestions.':'Species names load after you add an API key.',true); return; } toggleTarget(t.c,true); };
+  $('#tAddBtn').onclick=add; $('#tAdd').onkeydown=e=>{if(e.key==='Enter')add()};
+  $('#tHeat').onclick=()=>{ $('#heatOf').value='targets'; setLayer('heat'); focusPanel('map'); };
+}
+function findSpecies(q){ q=nk(q); if(!q||!S.taxList) return null; const c=resolveName(q); if(c) return S.tax.get(c);
+  return S.taxList.find(t=>t.c===q.replace(/ /g,''))||S.taxList.find(t=>t.s.toLowerCase()===q)||null; }
+function resolveName(name){ const q=nk(name); if(!q||!S.nameIx) return null; const c=S.nameIx.get(q); if(c) return c;
+  const ends=S.taxList.find(t=>nk(t.n).endsWith(' '+q)); if(ends) return ends.c;
+  const starts=S.taxList.find(t=>nk(t.n).startsWith(q)); return starts?starts.c:null; }
+let dlDone=false; function ensureDatalist(){ if(dlDone||!S.taxList) return; const dl=document.createElement('datalist'); dl.id='taxdl';
+  dl.innerHTML=S.taxList.map(t=>'<option value="'+esc(t.n)+'">').join(''); document.body.appendChild(dl); dlDone=true; }
+function toggleTarget(c,on){ if(on===undefined) on=!S.targets.has(c); on?S.targets.add(c):S.targets.delete(c); LS.set('targets',[...S.targets]); renderAll(); drawMap(); }
+
+/* wire */
+async function loadWire(){
+  const rc=regionOf();
+  try{ S.wire={rc,items:await eb('/product/lists/'+rc,{maxResults:100})}; saveSnap(); }catch(e){ if(!(S.wire&&S.wire.items&&S.wire.items.length)) S.wire={rc,err:e.message,items:[]}; }
+  renderWire();
+}
+function renderWire(){
+  const B=$('#wireBody');
+  if(!S.wire){ B.innerHTML=S.loaded?'<div class="empty">Loading checklists…</div>':needCta(); return; }
+  $('#wireSub').textContent=S.wire.rc+' · latest submissions';
+  if(S.wire.err){ B.innerHTML='<div class="empty down">'+esc(S.wire.err)+'</div>'; return; }
+  B.innerHTML=S.wire.items.length?'<table class="t"><tbody>'+S.wire.items.map(c=>{ const loc=c.loc||{};
+    return '<tr data-sub="'+esc(c.subId)+'" data-loc="'+esc(c.locId)+'" data-ln="'+esc(loc.locName||loc.name||'')+'"><td class="amb" style="white-space:nowrap">'+esc((c.obsDt||'').replace(/^\d{4}-/,''))+' '+esc(c.obsTime||'')+'</td><td><span class="nm">'+esc((loc.locName||loc.name||c.locId||'').toUpperCase())+'</span><div class="sm">'+(c.numSpecies!=null?c.numSpecies+' sp · ':'')+esc(c.userDisplayName||'')+'</div></td></tr>'; }).join('')+'</tbody></table>'
+    :'<div class="empty">No checklists yet.</div>';
+}
+
+/* county all-time list */
+async function loadCounty(){
+  const rc=regionOf(); try{ const l=await eb('/product/spplist/'+rc,{}); S.county=Object.assign(l.filter(c=>!S.tax||S.tax.has(c)),{region:rc}); renderPace(); saveSnap(); }catch(e){}
+}
+
+/* ================= outside feeds ================= */
+function isFallSeason(){ const m=new Date().getMonth(); return m>=7&&m<=10; }
+async function loadWx(){
+  light('WX','wait');
+  try{
+    const lat=S.scope.where==='geo'?S.scope.lat:S.set.lat, lng=S.scope.where==='geo'?S.scope.lng:S.set.lng;
+    const j=S.demo?demoWx():await getJSON('https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(3)+'&longitude='+lng.toFixed(3)+
+      '&hourly=temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,pressure_msl'+
+      '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant'+
+      '&wind_speed_unit=mph&temperature_unit=fahrenheit&timezone=auto&forecast_days=5&past_days=1');
+    const H=j.hourly, Dd=j.daily;
+    const pressAt=(date,h)=>{ const i=H.time.indexOf(date+'T'+pad(h)+':00'); return i>=0?H.pressure_msl[i]:null; };
+    const days=Dd.time.map((date,i)=>{ const p=pressAt(date,12), pp=i>0?pressAt(Dd.time[i-1],12):null; const dir=Dd.wind_direction_10m_dominant[i];
+      const northerly=dir>=280||dir<=40, southerly=dir>=140&&dir<=230; const rise=p!=null&&pp!=null?p-pp:0;
+      const front=northerly&&rise>=2.5;
+      const fall=isFallSeason(); let mig=0; if(fall){ if(northerly) mig+=1; if(front) mig+=1; if(rise>4) mig+=1; } else { if(southerly) mig+=2; if(rise<-3) mig+=1; }
+      return {date,hi:Math.round(Dd.temperature_2m_max[i]),lo:Math.round(Dd.temperature_2m_min[i]),rain:Dd.precipitation_probability_max[i]||0,wmax:Math.round(Dd.wind_speed_10m_max[i]),dir,
+        sunrise:Dd.sunrise[i],sunset:Dd.sunset[i],front,rise,mig:Math.min(3,mig)}; });
+    S.wx={days,hourly:H}; light('WX','ok'); saveSnap();
+  }catch(e){ if(!(S.wx&&S.wx.days)) S.wx={err:'Weather unavailable ('+e.message+')'}; light('WX','bad'); }
+  renderWx(); renderPlan(); renderClock();
+}
+async function loadTides(){
+  if(!S.set.tide){ S.tides=null; renderWx(); return; }
+  light('TIDE','wait');
+  try{
+    const d=new Date(); const b=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate());
+    const j=S.demo?demoTides():await getJSON('https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&application=BigYearTerminal&begin_date='+b+'&range=96&datum=MLLW&station='+encodeURIComponent(S.set.tide)+'&time_zone=lst_ldt&units=english&interval=hilo&format=json');
+    if(!j.predictions) throw new Error(j.error&&j.error.message||'no data');
+    S.tides=j.predictions.map(p=>({t:p.t,v:+p.v,type:p.type})); light('TIDE','ok'); saveSnap();
+  }catch(e){ if(!Array.isArray(S.tides)) S.tides={err:e.message}; light('TIDE','bad'); }
+  renderWx(); renderPlan();
+}
+async function loadInat(){
+  light('INAT','wait');
+  try{
+    const sc=S.scope; const lat=sc.where==='geo'?sc.lat:S.set.lat, lng=sc.where==='geo'?sc.lng:S.set.lng; const rad=sc.where==='geo'?km(sc.distMi):40;
+    const d1=ymd(new Date(Date.now()-Math.min(30,sc.mode==='recent'?sc.back:30)*DAY));
+    const j=S.demo?demoInat():await getJSON('https://api.inaturalist.org/v1/observations?iconic_taxa=Aves&verifiable=true&lat='+lat.toFixed(4)+'&lng='+lng.toFixed(4)+'&radius='+rad+'&d1='+d1+'&order_by=observed_on&order=desc&per_page=100&locale=en');
+    S.inat=(j.results||[]).filter(r=>r.taxon).map(r=>{ const sci=(r.taxon.name||'').toLowerCase(); let t=S.taxBySci&&(S.taxBySci.get(sci)||S.taxBySci.get(sci.split(' ').slice(0,2).join(' ')));
+      const [la,lo]=(r.location||',').split(',').map(Number);
+      return {c:t?t.c:null,n:t?t.n:(r.taxon.preferred_common_name||r.taxon.name),sci:r.taxon.name,dt:r.observed_on||'',place:r.place_guess||'',url:r.uri,photo:r.photos&&r.photos[0]?r.photos[0].url:'',q:r.quality_grade,user:r.user&&r.user.login,lat:la,lng:lo,obscured:!!r.obscured}; });
+    light('INAT','ok'); saveSnap();
+  }catch(e){ if(!Array.isArray(S.inat)) S.inat={err:e.message}; light('INAT','bad'); }
+  renderInat();
+}
+function renderWx(){
+  const B=$('#wxBody');
+  if(!S.wx){ B.innerHTML='<div class="empty">Loading forecast…</div>'; return; }
+  if(S.wx.err){ B.innerHTML='<div class="empty down">'+esc(S.wx.err)+'</div>'; return; }
+  const today=new Date(new Date().setHours(0,0,0,0));
+  const days=S.wx.days.filter(d=>parseDt(d.date)>=today).slice(0,4);
+  const migLbl=['—','LOW','MOD','HIGH'];
+  $('#wxSub').textContent=(isFallSeason()?'fall':'spring')+' migration read · Open-Meteo, NOAA';
+  let h='<div class="days">'+days.map(d=>{ const dd=parseDt(d.date);
+    return '<div class="day"><div class="dn">'+(dd.getTime()===today.getTime()?'TODAY':DOW[dd.getDay()].toUpperCase()+' '+dd.getDate())+(d.front?' <span class="cy">FRONT</span>':'')+'</div>'+
+      '<div class="wh">'+d.hi+'° / '+d.lo+'°</div><div><span class="arrow" style="transform:rotate('+((d.dir+180)%360)+'deg)">↑</span> '+compass(d.dir)+' '+d.wmax+' mph</div>'+
+      '<div class="'+(d.rain>=50?'down':'dim')+'">rain '+d.rain+'%</div><div class="mg">MIGR <span class="'+(d.mig>=2?'up':d.mig===1?'amb':'dim')+'">'+migLbl[d.mig]+'</span></div>'+
+      '<div class="dim" style="font-size:11px">☀ '+hm(parseDt(d.sunrise))+' – '+hm(parseDt(d.sunset))+'</div></div>'; }).join('')+'</div>';
+  h+='<canvas class="spark" id="windSpark" aria-label="Wind speed and rain chance, next 72 hours" style="height:70px"></canvas>';
+  h+='<div class="wxcols"><div><div class="sec">Tides · '+esc(S.set.tide||'—')+'</div>';
+  if(!S.tides) h+='<div class="note">Set a NOAA tide station in Settings.</div>';
+  else if(S.tides.err) h+='<div class="note down">Tides unavailable ('+esc(S.tides.err)+').</div>';
+  else h+='<table class="t"><tbody>'+S.tides.filter(t=>parseDt(t.t)>new Date(Date.now()-3*36e5)).slice(0,7).map(t=>'<tr><td class="'+(t.type==='H'?'cy':'dim')+'">'+(t.type==='H'?'HIGH':'LOW')+'</td><td>'+fmtDate(t.t)+'</td><td class="r">'+t.v.toFixed(1)+' ft</td></tr>').join('')+'</tbody></table>';
+  h+='</div><div><div class="sec">Migration radar</div><div class="note">BirdCast has no open data feed, so these open its live maps.</div><div class="acts">'+
+    '<a class="btn" href="https://birdcast.info/" target="_blank" rel="noopener">BirdCast forecast</a><a class="btn" href="https://birdcast.info/migration-tools/live-migration-maps" target="_blank" rel="noopener">Live migration map</a>'+
+    '<a class="btn" href="https://dashboard.birdcast.info/" target="_blank" rel="noopener">Migration dashboard</a></div>'+
+    '<div class="note">MIGR reads wind and pressure: in fall, north winds and a rising barometer after a front ground migrants; in spring, south winds carry them in.</div></div></div>';
+  B.innerHTML=h; requestAnimationFrame(drawWind);
+}
+function drawWind(){
+  const cv=$('#windSpark'); if(!cv||!S.wx||!S.wx.hourly) return; const H=S.wx.hourly; const now=Date.now();
+  const idx=H.time.map((t,i)=>[parseDt(t).getTime(),i]).filter(([t])=>t>=now-36e5&&t<=now+72*36e5);
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, Hh=cv.clientHeight; if(!W||!idx.length) return;
+  cv.width=W*dpr; cv.height=Hh*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr);
+  const maxW=Math.max(15,...idx.map(([,i])=>H.wind_speed_10m[i]));
+  const bw=W/idx.length;
+  idx.forEach(([t,i],k)=>{ const p=H.precipitation_probability[i]||0; g.fillStyle=cssv('--cyan'); g.globalAlpha=.25; g.fillRect(k*bw,Hh-12-(p/100)*(Hh-20),Math.max(1,bw-0.5),(p/100)*(Hh-20)); g.globalAlpha=1;
+    const d=new Date(t); if(d.getHours()===0){ g.fillStyle=cssv('--line2'); g.fillRect(k*bw,0,1,Hh-10); g.fillStyle=cssv('--dim'); g.font='10px IBM Plex Mono, monospace'; g.fillText(DOW[d.getDay()],k*bw+3,Hh-1); } });
+  g.strokeStyle=cssv('--amber'); g.lineWidth=1.5; g.beginPath(); idx.forEach(([,i],k)=>{ const y=Hh-12-(H.wind_speed_10m[i]/maxW)*(Hh-20); k?g.lineTo(k*bw+bw/2,y):g.moveTo(k*bw+bw/2,y); }); g.stroke();
+  g.fillStyle=cssv('--dim'); g.font='10px IBM Plex Mono, monospace'; g.fillText('wind mph (line, max '+Math.round(maxW)+') · rain % (bars)',4,10);
+}
+function renderInat(){
+  const B=$('#inatBody');
+  if(!S.inat){ B.innerHTML=S.loaded?'<div class="empty">Loading iNaturalist…</div>':needCta(); return; }
+  if(S.inat.err){ B.innerHTML='<div class="empty down">iNaturalist unavailable ('+esc(S.inat.err)+').</div>'; return; }
+  const ebSet=new Set(S.species.map(g=>g.c));
+  const list=S.inat.slice().sort((a,b)=>(RANK[a.c?status(a.c):'have']-RANK[b.c?status(b.c):'have'])||b.dt.localeCompare(a.dt));
+  const only=list.filter(o=>o.c&&!ebSet.has(o.c));
+  $('#inatSub').textContent=list.length+' photo/sound records · '+only.length+' not in eBird results';
+  B.innerHTML=(only.length?'<div class="note">Species on iNaturalist but missing from the eBird search: '+[...new Set(only.map(o=>o.n))].map(n=>'<span class="'+cls((only.find(o=>o.n===n)||{}).c)+'">'+esc(n)+'</span>').join(', ')+'</div>':'')+
+    (list.length?'<table class="t"><tbody>'+list.slice(0,80).map(o=>'<tr'+(o.c?' data-sp="'+esc(o.c)+'"':'')+'><td style="width:40px">'+(o.photo?'<img src="'+esc(o.photo)+'" alt="" width="36" height="36" style="display:block;object-fit:cover" loading="lazy">':'')+'</td>'+
+      '<td><span class="nm '+(o.c?cls(o.c):'')+'">'+esc(o.n)+'</span>'+(o.c?tags(o.c):'')+(o.c&&!ebSet.has(o.c)?'<span class="tag cy">iNAT ONLY</span>':'')+'<div class="sm">'+esc(o.place)+(o.obscured?' · location obscured':'')+'</div></td>'+
+      '<td class="r sm">'+esc(o.dt.slice(5))+'<div><a href="'+esc(o.url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">open</a></div></td></tr>').join('')+'</tbody></table>':'<div class="empty">No iNaturalist bird records in this area and window.</div>');
+}
+
+/* ================= calls (sound library) ================= */
+async function loadAudioIndex(){ S.audio=(await dbGet('audioIndex'))||[]; S.audioBySp=new Map(); for(const a of S.audio){ if(!S.audioBySp.has(a.c)) S.audioBySp.set(a.c,[]); S.audioBySp.get(a.c).push(a); } }
+const KINDS=[['flight call','flight call'],['flight','flight call'],['dawn song','dawn song'],['song','song'],['call','call'],['chip','call'],['alarm','alarm'],['drum','drum'],['wing','wings'],['juvenile','juvenile'],['begging','juvenile']];
+function kindOf(s){ s=s.toLowerCase(); for(const [k,v] of KINDS) if(s.includes(k)) return v; return 'sound'; }
+function matchName(text){
+  const w=nk(text).split(' ').filter(Boolean); let best=null;
+  for(let i=0;i<w.length;i++) for(let L=Math.min(6,w.length-i);L>=1;L--){ const c=S.nameIx.get(w.slice(i,i+L).join(' ')); if(c){ if(!best||L>best.L) best={c,L}; break; } }
+  return best&&best.c;
+}
+async function id3Text(file){
+  try{ const b=new Uint8Array(await file.slice(0,65536).arrayBuffer()); if(b[0]!==73||b[1]!==68||b[2]!==51) return '';
+    const ver=b[3]; let p=10; const end=10+((b[6]&127)<<21|(b[7]&127)<<14|(b[8]&127)<<7|(b[9]&127)); const out=[];
+    while(p+10<Math.min(end,b.length)){ const id=String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]); if(!/^[A-Z0-9]{4}$/.test(id)) break;
+      const sz=ver===4?((b[p+4]&127)<<21|(b[p+5]&127)<<14|(b[p+6]&127)<<7|(b[p+7]&127)):(b[p+4]<<24|b[p+5]<<16|b[p+6]<<8|b[p+7]);
+      if(['TIT2','TIT3','TPE1','TALB','COMM'].includes(id)&&sz>1&&p+10+sz<=b.length){ const enc=b[p+10]; let body=b.slice(p+11,p+10+sz); if(id==='COMM') body=body.slice(3);
+        const dec=new TextDecoder(enc===1?'utf-16':enc===2?'utf-16be':enc===3?'utf-8':'latin1'); out.push(dec.decode(body).replace(/\0/g,' ')); }
+      p+=10+sz; }
+    return out.join(' | '); }catch(e){ return ''; }
+}
+let pendingImport=null;
+async function importAudio(files){
+  if(!S.nameIx){ toast('Species names load after you add an API key.',true); return; }
+  files=[...files].filter(f=>/\.(mp3|m4a|aac|wav|ogg|flac)$/i.test(f.name)||/^audio\//.test(f.type));
+  if(!files.length){ toast('No audio files in that selection.',true); return; }
+  const st=$('#libStatus'); let done=0; const matched=[], unmatched=[];
+  for(const f of files){ const path=f.webkitRelativePath||f.name; let c=matchName(path.replace(/\.[^.]+$/,'').replace(/^\d+[\s._-]*/,''));
+    let tagTxt=''; if(!c){ tagTxt=await id3Text(f); c=tagTxt?matchName(tagTxt):null; }
+    if(c) matched.push({f,c,k:kindOf(path+' '+tagTxt),name:path}); else unmatched.push(path);
+    if(++done%40===0&&st) st.textContent='Matching '+done+' / '+files.length+'…'; }
+  pendingImport={matched,unmatched};
+  const mb=matched.reduce((a,m)=>a+m.f.size,0)/1048576; const sp=new Set(matched.map(m=>m.c)).size;
+  const needM=matched.filter(m=>isNeed(m.c)||S.targets.has(m.c)); const needMb=needM.reduce((a,m)=>a+m.f.size,0)/1048576;
+  if(st) st.innerHTML='<b class="wh">'+matched.length+'</b> files matched to <b class="wh">'+sp+'</b> species ('+mb.toFixed(0)+' MB). '+(unmatched.length?'<span class="down">'+unmatched.length+' not matched</span> (e.g. '+esc(unmatched.slice(0,2).join('; '))+'). ':'')+
+    '<div class="acts" style="padding-left:0"><button class="btn pri" id="saveAll">Save all ('+mb.toFixed(0)+' MB)</button><button class="btn" id="saveNeed">Needs + targets only ('+needMb.toFixed(0)+' MB)</button></div>';
+  $('#saveAll').onclick=()=>commitAudio(matched); $('#saveNeed').onclick=()=>commitAudio(needM);
+}
+async function commitAudio(list){
+  const st=$('#libStatus'); let n=0; const idx=S.audio.slice(); const have=new Set(idx.map(a=>a.name));
+  busy(true);
+  try{
+    for(const m of list){ if(have.has(m.name)){ n++; continue; } const id='a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+      await dbSet(id,m.f,'audio'); idx.push({id,c:m.c,k:m.k,name:m.name,size:m.f.size}); have.add(m.name);
+      if(++n%20===0){ st.textContent='Saving '+n+' / '+list.length+'…'; busy(null,n/list.length); await dbSet('audioIndex',idx); } }
+    await dbSet('audioIndex',idx); keepStorage(); toast('Saved '+list.length+' recordings to this device.');
+  }catch(e){ await dbSet('audioIndex',idx).catch(()=>{}); toast('Storage ran out after '+n+' files. Try "Needs + targets only".',true); }
+  finally{ busy(false); }
+  pendingImport=null; await loadAudioIndex(); renderCall();
+}
+let curURL=null, playing=null, packQueue=null;
+async function playClip(a,btn){
+  const au=$('#aud');
+  if(playing===a.id&&!au.paused){ au.pause(); playing=null; document.querySelectorAll('.pbtn.on').forEach(b=>b.classList.remove('on')); return; }
+  const blob=await dbGet(a.id,'audio'); if(!blob){ toast('That recording is missing; re-import your library.',true); return; }
+  if(curURL) URL.revokeObjectURL(curURL); curURL=URL.createObjectURL(blob); au.src=curURL; playing=a.id;
+  document.querySelectorAll('.pbtn.on').forEach(b=>b.classList.remove('on')); if(btn) btn.classList.add('on');
+  try{ await au.play(); }catch(e){ toast('Tap play again to start audio.',true); }
+}
+$('#aud')&&($('#aud').onended=()=>{ document.querySelectorAll('.pbtn.on').forEach(b=>b.classList.remove('on')); playing=null; if(packQueue) packNext(); });
+function clipBtns(c,max){ const cl=S.audioBySp.get(c)||[]; return cl.slice(0,max||6).map(a=>'<button class="pbtn" data-clip="'+esc(a.id)+'" title="'+esc(a.k+' · '+a.name)+'" aria-label="Play '+esc(tname(c)+' '+a.k)+'">▶</button>').join(' '); }
+const mlLink=c=>'https://search.macaulaylibrary.org/catalog?taxonCode='+encodeURIComponent(c)+'&mediaType=audio&sort=rating_rank_desc';
+
+function packSource(){ const v=($('#packSrc')&&$('#packSrc').value)||LS.get('packSrc','plan');
+  if(v==='plan'){ const p=locAgg()[0]; return {label:p?'Top play: '+p.ln:'Top play',codes:p?[...p.sp.keys()]:[]}; }
+  if(v==='needs') return {label:'Needs in this search',codes:S.species.filter(g=>isNeed(g.c)).sort((a,b)=>a.o-b.o).map(g=>g.c)};
+  if(v==='tgt') return {label:'Targets',codes:[...S.targets]};
+  return {label:'Everything reported here',codes:S.species.slice().sort((a,b)=>a.o-b.o).map(g=>g.c)}; }
+function renderCall(){
+  const B=$('#callBody'); document.querySelectorAll('[data-cm]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cm===S.callMode)));
+  const nSp=S.audioBySp.size;
+  $('#callSub').textContent=S.audio.length?S.audio.length+' recordings · '+nSp+' species':'no sound library yet';
+  if(S.callMode==='lib') return renderLib();
+  if(!S.audio.length){ B.innerHTML='<div class="empty"><h3>Add your Cornell library</h3>Import the audio files from your Cornell bird sounds collection once. They are matched to species by file name or track title and kept on this device, so the field pack and quiz work offline.<div style="margin-top:8px"><button class="btn pri" data-cm-go="lib">Open library</button></div></div>'+
+    (S.loaded?'<div class="note">Until then, each species page links to its Macaulay Library recordings.</div>':''); return; }
+  if(S.callMode==='quiz') return renderQuiz();
+  const src=packSource(); const v=LS.get('packSrc','plan');
+  const codes=src.codes.filter(c=>S.audioBySp.has(c)); const miss=src.codes.filter(c=>!S.audioBySp.has(c));
+  B.innerHTML='<div class="row"><select class="s" id="packSrc" aria-label="Field pack source"><option value="plan">Top strategy play</option><option value="needs">Needs in this search</option><option value="tgt">Targets</option><option value="all">Everything reported here</option></select>'+
+    '<button class="btn pri" id="packPlay"'+(codes.length?'':' disabled')+'>▶ PLAY ALL</button><button class="btn" id="packStop">■</button><span class="dim" id="packNow"></span></div>'+
+    '<div class="note">'+esc(src.label)+' · '+codes.length+' with recordings'+(miss.length?' · '+miss.length+' missing from your library':'')+'</div>'+
+    (codes.length?'<table class="t"><tbody>'+codes.map(c=>'<tr data-sp="'+esc(c)+'"><td><span class="nm '+cls(c)+'">'+esc(tname(c))+'</span><div class="sm">'+[...new Set((S.audioBySp.get(c)||[]).map(a=>a.k))].join(' · ')+'</div></td><td class="r" style="white-space:nowrap">'+clipBtns(c,5)+'</td></tr>').join('')+'</tbody></table>':'<div class="empty">No recordings for these species in your library.</div>')+
+    (miss.length?'<div class="note">Missing: '+miss.slice(0,12).map(c=>'<a href="'+mlLink(c)+'" target="_blank" rel="noopener">'+esc(tname(c))+'</a>').join(', ')+'</div>':'');
+  $('#packSrc').value=v; $('#packSrc').onchange=e=>{ LS.set('packSrc',e.target.value); renderCall(); };
+  $('#packPlay').onclick=()=>{ packQueue=codes.map(c=>(S.audioBySp.get(c)||[]).find(a=>a.k==='song')||(S.audioBySp.get(c)||[])[0]).filter(Boolean); packNext(); };
+  $('#packStop').onclick=()=>{ packQueue=null; $('#aud').pause(); $('#packNow').textContent=''; };
+}
+function packNext(){ if(!packQueue||!packQueue.length){ packQueue=null; const n=$('#packNow'); if(n) n.textContent='done'; return; }
+  const a=packQueue.shift(); const n=$('#packNow'); if(n) n.innerHTML='now: <span class="amb">'+esc(tname(a.c))+'</span> · '+esc(a.k);
+  setTimeout(()=>{ if(packQueue!==null) playClip(a); },packQueue.length?1200:0); }
+function renderLib(){
+  const B=$('#callBody'); const mb=S.audio.reduce((a,x)=>a+x.size,0)/1048576;
+  const dirOk='webkitdirectory' in document.createElement('input');
+  B.innerHTML='<div class="field"><span class="lb">Import recordings</span><div class="help">Choose the audio files from your Cornell collection (MP3 / M4A). On iPhone, open the folder in the Files picker and tap Select All. Files are matched to eBird species by name, then by the MP3 title tag.</div>'+
+    '<div class="acts" style="padding-left:0"><label class="btn pri">Choose files<input type="file" id="libFiles" multiple accept="audio/*,.mp3,.m4a,.wav" hidden></label>'+(dirOk?'<label class="btn">Choose a folder<input type="file" id="libDir" webkitdirectory multiple hidden></label>':'')+'</div><div class="help" id="libStatus"></div></div>'+
+    '<div class="note">On this device: '+S.audio.length+' recordings · '+S.audioBySp.size+' species · '+mb.toFixed(0)+' MB'+(S.audio.length?' · <a href="#" id="libClear">clear library</a>':'')+'</div>'+
+    (S.audio.length?'<table class="t"><tbody>'+[...S.audioBySp.entries()].sort((a,b)=>torder(a[0])-torder(b[0])).map(([c,cl])=>'<tr data-sp="'+esc(c)+'"><td><span class="nm '+cls(c)+'">'+esc(tname(c))+'</span><div class="sm">'+cl.length+' · '+[...new Set(cl.map(a=>a.k))].join(', ')+'</div></td><td class="r" style="white-space:nowrap">'+clipBtns(c,4)+'</td></tr>').join('')+'</tbody></table>':'');
+  $('#libFiles').onchange=e=>importAudio(e.target.files); if($('#libDir')) $('#libDir').onchange=e=>importAudio(e.target.files);
+  if($('#libClear')) $('#libClear').onclick=async e=>{ e.preventDefault(); const a=e.target; if(!a.dataset.armed){ a.dataset.armed='1'; a.textContent='tap again to remove every recording'; setTimeout(()=>{ if(a.isConnected){ delete a.dataset.armed; a.textContent='clear library'; } },4000); return; }
+    await dbClear('audio'); await dbDel('audioIndex'); await loadAudioIndex(); renderCall(); };
+}
+/* quiz: Leitner boxes 1-5 per species */
+let Q=null;
+function quizPool(){ const v=LS.get('quizSrc','here'); let codes;
+  if(v==='custom') codes=LS.get('quizCustom',[]); else if(v==='here') codes=S.species.map(g=>g.c); else if(v==='needs') codes=S.species.filter(g=>isNeed(g.c)).map(g=>g.c); else if(v==='tgt') codes=[...S.targets]; else if(v==='county'&&S.county) codes=[...S.county]; else codes=[...S.audioBySp.keys()];
+  codes=codes.filter(c=>S.audioBySp.has(c)); if(codes.length<(v==='custom'?2:4)) codes=[...S.audioBySp.keys()]; return codes; }
+const qBox=c=>(S.quiz[c]&&S.quiz[c].b)||1;
+function nextQuestion(){
+  const pool=quizPool(); if(pool.length<2){ Q={err:'Need recordings for at least 2 species to quiz.'}; return; }
+  const w=pool.map(c=>({c,w:1/Math.pow(2,qBox(c)-1)*(isNeed(c)?1.6:1)*(Q&&Q.c===c?0.05:1)}));
+  let r=Math.random()*w.reduce((a,x)=>a+x.w,0), pick=w[0].c; for(const x of w){ r-=x.w; if(r<=0){pick=x.c;break} }
+  const near=pool.filter(c=>c!==pick).sort((a,b)=>Math.abs(torder(a)-torder(pick))-Math.abs(torder(b)-torder(pick)));
+  const opts=[pick,...near.slice(0,2),near[3+Math.floor(Math.random()*Math.max(1,near.length-3))]||near[2]].filter((v,i,a)=>v&&a.indexOf(v)===i).slice(0,4);
+  while(opts.length<4&&near.length>opts.length) opts.push(near[opts.length]);
+  opts.sort(()=>Math.random()-.5);
+  const clips=S.audioBySp.get(pick); const clip=clips[Math.floor(Math.random()*clips.length)];
+  Q={c:pick,opts,clip,answered:null};
+}
+function renderQuiz(){
+  const B=$('#callBody'); if(!Q||Q.err) nextQuestion();
+  const v=LS.get('quizSrc','here');
+  const pool=quizPool(); const boxes=[0,0,0,0,0]; pool.forEach(c=>boxes[qBox(c)-1]++);
+  const tot=Object.values(S.quiz).reduce((a,x)=>a+(x.n||0),0), ok=Object.values(S.quiz).reduce((a,x)=>a+(x.ok||0),0);
+  let h='<div class="row"><select class="s" id="quizSrc" aria-label="Quiz on"><option value="here">Birds reported here</option><option value="needs">My needs here</option><option value="tgt">Targets</option><option value="county">County all-time list</option><option value="all">Whole library</option>'+(LS.get('quizCustom',[]).length?'<option value="custom">Look-alike set</option>':'')+'</select>'+
+    '<span class="dim">'+pool.length+' species · '+(tot?Math.round(ok/tot*100)+'% of '+tot:'no answers yet')+'</span></div>';
+  if(Q.err){ B.innerHTML=h+'<div class="empty">'+esc(Q.err)+'</div>'; bindQuizSrc(v); return; }
+  h+='<div class="quiz"><div style="display:flex;gap:14px;align-items:center"><button class="qplay" id="qPlay" aria-label="Play the mystery recording">▶</button><div><div class="amb" style="font-weight:600">WHO IS SINGING?</div><div class="dim" style="font-size:11.5px">'+esc(Q.clip.k)+(Q.answered?'':' · listen, then pick')+'</div></div></div>'+
+    '<div class="choices">'+Q.opts.map(c=>'<button data-ans="'+esc(c)+'" class="'+(Q.answered?(c===Q.c?'ok':c===Q.answered?'no':''):'')+'">'+esc(tname(c))+'</button>').join('')+'</div>';
+  if(Q.answered) h+='<div style="margin-top:10px">'+(Q.answered===Q.c?'<span class="up">Correct.</span>':'<span class="down">It was '+esc(tname(Q.c))+'.</span>')+' <span class="dim">Box '+qBox(Q.c)+' of 5.</span> <button class="btn pri" id="qNext">NEXT</button> <button class="btn" data-sp="'+esc(Q.c)+'">More recordings</button></div>';
+  h+='<div class="boxes" title="Species by box: 1 = still learning, 5 = mastered">'+boxes.map((n,i)=>'<span style="'+(i===4?'color:var(--up)':'')+'">B'+(i+1)+' '+n+'</span>').join('')+'</div>'+
+    '<div class="dim" style="font-size:11.5px;margin-top:6px">Right answers move a species up a box and it comes back less often; misses send it to box 1. Needs come up more.</div></div>';
+  B.innerHTML=h; bindQuizSrc(v);
+  $('#qPlay').onclick=()=>playClip(Q.clip,$('#qPlay'));
+  B.querySelectorAll('[data-ans]').forEach(b=>b.onclick=()=>{ if(Q.answered) return; Q.answered=b.dataset.ans; const s=S.quiz[Q.c]||(S.quiz[Q.c]={b:1,n:0,ok:0}); s.n++;
+    if(Q.answered===Q.c){ s.ok++; s.b=Math.min(5,s.b+1); } else { s.b=1; const w=S.quiz[Q.answered]||(S.quiz[Q.answered]={b:1,n:0,ok:0}); w.b=Math.max(1,w.b-1); }
+    LS.set('quiz',S.quiz); renderQuiz(); });
+  if($('#qNext')) $('#qNext').onclick=()=>{ nextQuestion(); renderQuiz(); playClip(Q.clip,$('#qPlay')); };
+}
+function bindQuizSrc(v){ $('#quizSrc').value=v; $('#quizSrc').onchange=e=>{ LS.set('quizSrc',e.target.value); Q=null; renderQuiz(); }; }
+
+/* ================= drawers ================= */
+function openDrawer(html){ const d=$('#drawer'); d.innerHTML=html; d.hidden=false; $('#scrim').hidden=false; const b=d.querySelector('.db'); if(b) b.scrollTop=0; }
+function closeDrawer(){ $('#drawer').hidden=true; $('#scrim').hidden=true; }
+const ebLink=(p,t)=>'<a class="btn" href="https://ebird.org/'+p+'" target="_blank" rel="noopener">'+t+'</a>';
+const dirLink=(lat,lng)=>'<a class="btn" href="https://maps.apple.com/?daddr='+lat+','+lng+'" target="_blank" rel="noopener">Directions</a>';
+const dhead=(fn,t,sub)=>'<div class="dh"><div style="flex:1;min-width:0"><div class="fn">'+fn+'</div><h2>'+t+'</h2><div class="sub">'+sub+'</div></div><button class="iconbtn" data-close aria-label="Close">✕</button></div>';
+function obsTable(list,showLoc){ return '<table class="t"><tbody>'+list.map(o=>'<tr '+(o.sub?'data-sub="'+esc(o.sub)+'" data-loc="'+esc(o.loc)+'" data-ln="'+esc(o.ln)+'"':'')+'><td><span class="nm'+(showLoc?'':' '+cls(o.c))+'">'+(showLoc?esc(o.ln):esc(o.n))+'</span><div class="sm">'+(showLoc?'':esc(o.ln)+' · ')+(o.cnt?o.cnt+' · ':'')+fmtDate(o.dt)+'</div></td><td class="r">'+ago(o.dt)+'</td><td class="r">'+distMi(o.lat,o.lng).toFixed(0)+' mi</td></tr>').join('')+'</tbody></table>'; }
+/* Field notes: quick ID marks and look-alike separations for confusion-prone species.
+   Keyed by common name (lowercase, no apostrophes). m = key marks, h = habitat/behavior, v = voice,
+   like = [look-alike common name, how to tell them apart]. */
+const FIELD={
+"nelsons sparrow":{m:["Bright orange-buff face triangle and breast","Breast streaks blurry and faint","Gray central crown stripe and gray nape","Short bill"],h:"Spartina and needlerush salt marsh in winter; pops up briefly, then drops back in",
+  like:[["Saltmarsh Sparrow","Saltmarsh has crisp black streaks on a whiter belly, a longer bill and a face triangle sharply framed in dark lines"],["Seaside Sparrow","Seaside is dusky gray-olive with no orange face, just a yellow spot in front of the eye"],["LeConte's Sparrow","LeConte's has a purplish streaked nape, gray ear patch and lives in drier grassy fields, not salt marsh"]]},
+"saltmarsh sparrow":{m:["Orange-buff face triangle sharply outlined by dark lines","Crisp black streaks on buff breast and flanks","Whitish belly","Longer, more pointed bill than Nelson's"],h:"Salt marsh, mostly Atlantic coast; rare on the Gulf side",
+  like:[["Nelson's Sparrow","Nelson's is brighter orange with blurry breast streaks and a shorter bill"],["Seaside Sparrow","Seaside lacks the orange face triangle"]]},
+"seaside sparrow":{m:["Dusky gray-olive overall","Yellow spot between bill and eye","White throat bordered by a dark whisker","Long bill"],h:"Needlerush and Spartina marsh; sings from grass tips at dawn",v:"Buzzy 'tup-tup zee-reeeee'",
+  like:[["Nelson's Sparrow","Nelson's is smaller and bright orange-buff on face and breast"],["Saltmarsh Sparrow","Saltmarsh has an orange face triangle and crisp black streaks"]]},
+"lecontes sparrow":{m:["Small, bright orange-buff face and breast","Gray ear patch","White central crown stripe","Purplish-streaked nape; fine dark streaks on the flanks"],h:"Wet grassy fields and marsh edges; extremely secretive",
+  like:[["Nelson's Sparrow","Nelson's has a gray (not streaked purplish) nape and lives in salt marsh"],["Grasshopper Sparrow","Grasshopper has a plain, unstreaked buffy breast and a flat head"]]},
+"grasshopper sparrow":{m:["Flat head, big bill for its size","Plain buffy breast without streaks (adults)","Yellow-orange spot in front of the eye; white eye-ring","Short, spiky tail"],h:"Dry grassland and prairie",v:"Insect-like buzz: 'tik-tuk-zzzzzzz'",
+  like:[["LeConte's Sparrow","LeConte's has streaked flanks and a bright orange face"],["Savannah Sparrow","Savannah has a streaked breast and notched tail"]]},
+"clay-colored sparrow":{m:["Brown cheek patch crisply outlined in dark","Pale lores (no dark line between bill and eye)","Gray nape contrasts with brown crown","Plain buffy-gray breast"],h:"Weedy edges, often with Chipping Sparrows in fall",
+  like:[["Chipping Sparrow","Chipping has a dark line through the eye that reaches the bill and a gray rump"]]},
+"chipping sparrow":{m:["Dark line through the eye that runs all the way to the bill","Rufous cap in breeding plumage, duller in winter","Gray rump","Plain gray breast"],h:"Lawns, open woods, flocks in winter",
+  like:[["Clay-colored Sparrow","Clay-colored has pale lores and a brown, crisply framed cheek"]]},
+"lark sparrow":{m:["Bold chestnut, black and white harlequin head","Single dark spot on a clean white breast","Long rounded tail with white corners, obvious in flight"],h:"Open areas with bare ground; rare migrant in Florida"},
+"savannah sparrow":{m:["Streaked breast","Yellow wash in the eyebrow, strongest in front of the eye","Short notched tail","Pink legs"],h:"Open grassy fields, dunes",
+  like:[["Song Sparrow","Song has a longer rounded tail, gray face with broad brown stripes and no yellow"],["Grasshopper Sparrow","Grasshopper has an unstreaked breast"]]},
+"song sparrow":{m:["Heavy brown streaks that gather into a central breast spot","Gray face with broad brown stripes","Long rounded tail that pumps in flight"],h:"Brushy edges near water",
+  like:[["Savannah Sparrow","Savannah has a short notched tail, finer streaks and yellow in front of the eye"],["Swamp Sparrow","Swamp has rufous wings and an almost unstreaked gray breast"]]},
+"swamp sparrow":{m:["Rich rufous wings","Gray face and breast with only faint blurry streaks","Whitish throat"],h:"Marshes and wet thickets in winter",
+  like:[["Song Sparrow","Song has heavy breast streaks and a central spot"]]},
+"golden-winged warbler":{m:["Gray body","Yellow forecrown and big yellow wing patch","Black (male) or gray (female) throat and mask"],h:"Fall migrant in Florida hammocks and coastal woods",
+  like:[["Blue-winged Warbler","Blue-winged is yellow below with a thin black eyeline and white wingbars; hybrids (Brewster's, Lawrence's) mix the two"]]},
+"blue-winged warbler":{m:["Bright yellow head and underparts","Thin black line through the eye","Blue-gray wings with two white wingbars"],h:"Migrant in hammocks and edges",
+  like:[["Golden-winged Warbler","Golden-winged is gray with a yellow wing patch and dark throat"],["Prothonotary Warbler","Prothonotary has no eyeline or wingbars and a golden head"],["Pine Warbler","Pine has olive back, faint side streaks and no eyeline"]]},
+"tennessee warbler":{m:["Fall: plain olive-green above, pale yellowish below","White undertail coverts","Pale eyebrow and dark eyeline","Thin, sharp bill; short tail"],h:"Treetops in migration, often in flowering trees",
+  like:[["Orange-crowned Warbler","Orange-crowned has yellow undertail coverts, blurry breast streaks, a split eye-ring and a longer tail"],["Philadelphia Vireo","Philadelphia Vireo has a thicker hooked bill, yellow strongest at the center of the breast and bluish legs"]]},
+"orange-crowned warbler":{m:["Drab olive-gray, few contrasts","Faint blurry streaks on the breast","Yellow undertail coverts","Split eye-arcs and a dark eyeline"],h:"Common winter warbler in Florida thickets",
+  like:[["Tennessee Warbler","Tennessee has white undertail coverts and a cleaner face and breast"]]},
+"philadelphia vireo":{m:["Yellow throat and breast, brightest at the center","Dark lores","Gray cap and white eyebrow","No wingbars"],h:"Fall migrant in canopy; uncommon in Florida",
+  like:[["Warbling Vireo","Warbling is paler with pale lores and yellow mostly on the flanks"],["Red-eyed Vireo","Red-eyed is bigger with a black-edged gray crown, red eye and white underparts"],["Tennessee Warbler","Tennessee has a thin warbler bill and white undertail"]]},
+"warbling vireo":{m:["Very plain gray-olive","Pale lores and soft face pattern","Faint yellow wash on the flanks"],h:"Migrant; rare in Florida",
+  like:[["Philadelphia Vireo","Philadelphia has dark lores and a yellow throat and breast center"]]},
+"red-eyed vireo":{m:["Gray crown edged in black above a white eyebrow","Red eye (adults)","Olive back, white underparts","No wingbars"],h:"Common migrant and summer breeder",v:"Endless robin-like phrases: 'here I am, where are you'",
+  like:[["Black-whiskered Vireo","Black-whiskered has a thin dark whisker stripe and duller crown"],["Philadelphia Vireo","Philadelphia is smaller with yellow underparts"]]},
+"black-whiskered vireo":{m:["Like a Red-eyed Vireo with a thin dark whisker stripe","Duller crown pattern","Longer bill"],h:"Mangroves and hammocks of south Florida and the Keys, spring to summer",v:"Short clipped phrases: 'John-Phillip ... Phillip-John'",
+  like:[["Red-eyed Vireo","Red-eyed lacks the whisker stripe and has a black-edged crown"]]},
+"yellow-throated vireo":{m:["Bright yellow throat and breast","Yellow 'spectacles'","White belly","Two bold white wingbars; gray rump"],h:"Canopy of hardwood and mixed forest",
+  like:[["Pine Warbler","Pine has a thin warbler bill, faint streaks on the sides and no spectacles"]]},
+"white-eyed vireo":{m:["Bold yellow spectacles","White eye (adults; dark in young birds)","Two white wingbars","Yellow flanks"],h:"Thickets; very common in Florida",v:"Sharp 'chick-a-per-weeoo-chick'",
+  like:[["Bell's Vireo","Bell's is drabber with faint spectacles and fainter wingbars"]]},
+"bells vireo":{m:["Small and drab gray-olive","Faint white spectacles","One or two faint wingbars","Yellowish wash on the flanks; flicks its tail"],h:"Rare migrant/winter visitor in Florida thickets",
+  like:[["White-eyed Vireo","White-eyed has bold yellow spectacles and strong white wingbars"]]},
+"pine warbler":{m:["Yellow throat and breast with faint side streaks","Unstreaked olive back","Two white wingbars","Thick-ish bill for a warbler"],h:"Pines; common Florida resident",v:"Musical trill",
+  like:[["Yellow-throated Vireo","Yellow-throated Vireo has yellow spectacles and a heavier hooked bill"]]},
+"yellow-breasted chat":{m:["Large for a 'warbler', with a long tail","Bright yellow throat and breast","White spectacles","Thick bill, olive back"],h:"Dense thickets; skulks",v:"Odd whistles, chuckles and clucks",
+  like:[["Common Yellowthroat","Yellowthroat is much smaller with a thin bill and no white spectacles"]]},
+"common yellowthroat":{m:["Small olive warbler with yellow throat","Black mask on males","Warm buff flanks on females"],h:"Marsh and wet thickets",
+  like:[["Yellow-breasted Chat","Chat is much larger with a thick bill and white spectacles"]]},
+"bank swallow":{m:["Small; brown above, white below","Distinct brown breast band","White throat wraps up behind the ear","Fast, fluttery wingbeats"],h:"Migrant over water and fields, often mixed with other swallows",
+  like:[["Northern Rough-winged Swallow","Rough-winged has no breast band and a dingy brown throat and breast"],["Tree Swallow","Juvenile Tree has a blurry gray-brown breast wash and is larger"]]},
+"northern rough-winged swallow":{m:["Plain brown above","Dingy brown throat and breast fading to white","No breast band"],h:"Over water; nests in banks",
+  like:[["Bank Swallow","Bank has a crisp brown breast band on a white throat"]]},
+"tree swallow":{m:["Adult: iridescent blue-green above, clean white below","Juvenile: brown with blurry breast smudge"],h:"Huge winter flocks over Florida marshes",
+  like:[["Bank Swallow","Bank is smaller with a sharp brown breast band"]]},
+"black tern":{m:["Small, dark gray tern","Fall: white below with a dark smudge on the side of the breast","Dark cap and ear spot","Short notched tail; buoyant flight, dips to the water"],h:"Migrant over the Gulf and coastal ponds",
+  like:[["Least Tern","Least has a white forehead, black outer primaries, no breast smudge and faster wingbeats"],["Forster's Tern","Forster's is larger and paler with a long forked tail"]]},
+"least tern":{m:["Tiny tern","White forehead on a black cap (breeding)","Yellow bill and legs in summer","Black outer primaries; rapid wingbeats, hovers"],h:"Beaches and rooftop colonies, spring–summer",
+  like:[["Black Tern","Black Tern has a dark breast-side smudge and gray tail"]]},
+"forsters tern":{m:["Winter: black eye mask that doesn't join over the nape","Silvery-white primaries","Long forked tail"],h:"Common winter tern in Florida",
+  like:[["Common Tern","Common has a dark carpal bar, dark wedge in the primaries and black that wraps around the nape"]]},
+"common tern":{m:["Dark carpal bar on the shoulder (nonbreeding)","Dark wedge in the outer primaries","Black cap wraps around the back of the head in winter"],h:"Migrant offshore and on beaches",
+  like:[["Forster's Tern","Forster's has frosty white primaries and a black eye mask only"]]},
+"sandwich tern":{m:["Slim, medium tern","Black bill with a yellow tip","Shaggy crest"],h:"Beaches, often with Royal Terns",
+  like:[["Royal Tern","Royal is bigger with a thick orange bill"]]},
+"royal tern":{m:["Large tern with a thick orange bill","White forehead most of the year","Shaggy crest"],h:"Beaches and bays year-round",
+  like:[["Caspian Tern","Caspian has a thicker blood-red bill with a dark tip, dark underside to the primaries and a streaky cap without a white forehead"],["Sandwich Tern","Sandwich is slimmer with a yellow-tipped black bill"]]},
+"caspian tern":{m:["Largest tern; heavy blood-red bill with a dark tip","Dark undersides of the primaries in flight","Winter cap streaked, forehead not white"],h:"Bays and lakes, mostly winter",v:"Harsh, heron-like 'kraaah'",
+  like:[["Royal Tern","Royal has an orange bill, white forehead and pale wingtips from below"]]},
+"long-billed curlew":{m:["Very long, down-curved bill","Warm cinnamon-buff overall","Plain head without crown stripes","Cinnamon underwings in flight"],h:"Beaches and mudflats; a few winter at Fort De Soto",
+  like:[["Whimbrel","Whimbrel is grayer brown with bold dark crown stripes and a shorter bill"],["Marbled Godwit","Godwit has a slightly upturned, pink-based bill"]]},
+"whimbrel":{m:["Down-curved bill (shorter than a curlew's)","Bold dark crown stripes","Gray-brown, not cinnamon"],h:"Beaches and rocky shores",
+  like:[["Long-billed Curlew","Curlew is cinnamon with a plain head and much longer bill"]]},
+"hudsonian whimbrel":{m:["Down-curved bill (shorter than a curlew's)","Bold dark crown stripes","Gray-brown, not cinnamon"],h:"Beaches and rocky shores",
+  like:[["Long-billed Curlew","Curlew is cinnamon with a plain head and much longer bill"]]},
+"marbled godwit":{m:["Long, slightly upturned two-tone bill (pink base, dark tip)","Cinnamon-buff, finely barred","Cinnamon underwings"],h:"Mudflats and beaches",
+  like:[["Long-billed Curlew","Curlew's bill curves down"]]},
+"american avocet":{m:["Long, thin upturned bill","Black-and-white back and wings","Blue-gray legs","Gray head in winter, cinnamon in breeding"],h:"Shallow ponds and flats; scarce in Pinellas",
+  like:[["Black-necked Stilt","Stilt has a straight bill, red-pink legs and a solid black back"]]},
+"black-necked stilt":{m:["Straight needle-thin bill","Very long red-pink legs","Black back, white below"],h:"Shallow fresh and brackish ponds",
+  like:[["American Avocet","Avocet has an upturned bill and blue-gray legs"]]},
+"short-billed dowitcher":{m:["Chunky with a very long straight bill; feeds like a sewing machine","Winter: plain gray","Call is the best clue"],h:"Common on salt flats in winter",v:"Mellow 'tu-tu-tu'",
+  like:[["Long-billed Dowitcher","Long-billed calls a sharp high 'keek' and prefers fresh water"]]},
+"long-billed dowitcher":{m:["Looks almost identical to Short-billed in winter","Slightly darker, more uniform gray breast","Call is the best clue"],h:"Fresh and brackish ponds",v:"Sharp high 'keek', often in a series",
+  like:[["Short-billed Dowitcher","Short-billed gives a mellow 'tu-tu-tu' and favors salt water"]]},
+"western sandpiper":{m:["Small gray 'peep' with black legs","Longer bill, slightly drooping at the tip","Fall juveniles show rufous on the scapulars"],h:"The default winter peep on Florida flats",
+  like:[["Semipalmated Sandpiper","Semipalmated has a short blunt straight bill and is rare in Florida in winter"],["Least Sandpiper","Least is browner with yellowish legs"]]},
+"semipalmated sandpiper":{m:["Small gray-brown 'peep' with black legs","Short, blunt, straight bill"],h:"Mostly a spring and fall migrant",
+  like:[["Western Sandpiper","Western has a longer bill with a droop at the tip and winters commonly"]]},
+"least sandpiper":{m:["Smallest peep; brown","Yellowish-green legs","Thin, slightly drooping bill"],h:"Muddy edges, often in vegetation",
+  like:[["Western Sandpiper","Western is grayer with black legs"]]},
+"northern gannet":{m:["Huge white seabird, black wingtips","Pointed at both ends: bill, wings and tail","Juveniles dark brown with white speckles, whitening over four years","Plunge-dives from height"],h:"Offshore in winter; scan from Honeymoon Island and Fort De Soto",
+  like:[["Masked Booby","Masked Booby has a black trailing edge to the whole wing and a black tail"],["Brown Booby","Brown Booby has a dark breast sharply cut off from a white belly"]]},
+"masked booby":{m:["White with black flight feathers along the whole trailing edge","Black tail and black face mask","Yellow bill"],h:"Far offshore; rare from shore",
+  like:[["Northern Gannet","Gannet has white tail and only black wingtips"]]},
+"brown booby":{m:["Dark brown head and breast cut off sharply from a white belly","Yellowish bill and feet"],h:"Offshore; occasional on channel markers",
+  like:[["Northern Gannet","Young gannets are speckled all over without the clean white belly"]]},
+"sedge wren":{m:["Small, pale wren","Crown and back streaked with white","Faint pale eyebrow; buffy flanks","Short cocked tail"],h:"Wet grassy meadows and marsh edges in winter; secretive",v:"Dry 'chap' notes and staccato chatter",
+  like:[["Marsh Wren","Marsh Wren has an unstreaked crown, bold white eyebrow and a streaked triangle only on the upper back; lives in cattails and reeds"]]},
+"marsh wren":{m:["Bold white eyebrow under a dark crown","Black-and-white streaked triangle on the upper back","Warm brown body"],h:"Cattails, reeds and needlerush",
+  like:[["Sedge Wren","Sedge has a streaked crown and back with a faint eyebrow"],["Carolina Wren","Carolina is larger and richer rufous with an unstreaked back"]]},
+"eastern screech-owl":{m:["Small owl with ear tufts","Yellow eyes","Gray or rufous morph (Florida birds often brownish-gray)"],h:"Nocturnal; listen at dusk in parks and neighborhoods",v:"Descending horse-like whinny and a long monotone trill",
+  like:[["Great Horned Owl","Great Horned is several times bigger with a white throat"]]},
+"fork-tailed flycatcher":{m:["Black cap, gray back, white underparts","Extremely long black forked tail"],h:"Rare vagrant from South America; open areas and wires",
+  like:[["Scissor-tailed Flycatcher","Scissor-tailed has a pale gray head, salmon-pink flanks and black-and-white tail"]]},
+"scissor-tailed flycatcher":{m:["Pale gray head and back","Salmon-pink flanks and underwings","Very long black-and-white forked tail"],h:"Open country; rare winter visitor in Florida",
+  like:[["Fork-tailed Flycatcher","Fork-tailed has a black cap and an all-black tail"]]},
+"coopers hawk":{m:["Crow-sized Accipiter","Large head that sticks out in flight","Rounded tail with a broad white tip","Thick legs"],h:"Neighborhoods and woods; hunts birds at feeders",
+  like:[["Sharp-shinned Hawk","Sharpie is smaller with a tiny head, square-tipped tail and pencil-thin legs"]]},
+"sharp-shinned hawk":{m:["Small Accipiter (jay-sized males)","Small head that barely shows in flight","Square or notched tail tip with a thin white edge","Pencil-thin legs"],h:"Migrant and winter visitor",
+  like:[["Cooper's Hawk","Cooper's has a bigger head, rounded tail and broad white tail tip"]]},
+"snail kite":{m:["Paddle-shaped wings; slow, floppy flight low over marsh","Thin, deeply hooked bill","Adult male slate-gray with red eyes and legs; female/young brown streaked with a pale face","White base of the tail with a dark band"],h:"Central and south Florida lakes and marshes (Lake Toho, Lake Okeechobee)",
+  like:[["Northern Harrier","Harrier has an owl-like face, long narrow tail and white rump patch, and glides with wings in a V"]]},
+"northern harrier":{m:["Long wings and tail; flies low with wings in a shallow V","White rump patch","Owl-like facial disk"],h:"Marshes and fields in winter",
+  like:[["Snail Kite","Snail Kite has a hooked bill, paddle wings and a white tail base with a dark band"]]},
+"mangrove cuckoo":{m:["Black mask through the eye","Buffy-cinnamon belly","No rufous in the wings","Long tail with big white spots"],h:"Mangroves of south Florida and the Keys; very secretive",v:"Slow, guttural 'gawk gawk gawk'",
+  like:[["Yellow-billed Cuckoo","Yellow-billed has white underparts, rufous in the wings and no black mask"]]},
+"yellow-billed cuckoo":{m:["White underparts","Rufous flash in the primaries","Yellow lower mandible","Big white tail spots"],h:"Woods in migration and summer",
+  like:[["Mangrove Cuckoo","Mangrove has a black mask and buffy belly"],["Black-billed Cuckoo","Black-billed has a dark bill, red eye-ring and small tail spots"]]},
+"black-billed cuckoo":{m:["All-dark bill","Red eye-ring (adults)","Small tail spots","Little or no rufous in the wings"],h:"Uncommon migrant",
+  like:[["Yellow-billed Cuckoo","Yellow-billed has a yellow lower bill and big white tail spots"]]}
+};
+
+/* ================= cached outside lookups ================= */
+async function cachedJSON(url,days=30){ const k='c:'+url; const hit=await dbGet(k); if(hit&&Date.now()-hit.t<days*DAY) return hit.d;
+  try{ const d=await getJSON(url); dbSet(k,{t:Date.now(),d}).catch(()=>{}); return d; }catch(e){ if(hit) return hit.d; throw e; } }
+async function cachedEB(path,params,days=7){ const k='e:'+path+JSON.stringify(params||{}); const hit=S.demo?null:await dbGet(k); if(hit&&Date.now()-hit.t<days*DAY) return hit.d;
+  try{ const d=await eb(path,params); if(!S.demo) dbSet(k,{t:Date.now(),d}).catch(()=>{}); return d; }catch(e){ if(hit) return hit.d; throw e; } }
+const regionList=(type,parent)=>cachedEB('/ref/region/list/'+type+'/'+parent,{fmt:'json'},90);
+const INAT='https://api.inaturalist.org/v1';
+const photoMemo=new Map();
+async function inatTaxon(c){
+  if(S.demo||!S.tax) return null; const t=S.tax.get(c); if(!t) return null;
+  if(photoMemo.has(c)) return photoMemo.get(c);
+  const p=(async()=>{ const j=await cachedJSON(INAT+'/taxa?q='+encodeURIComponent(t.s)+'&per_page=8&locale=en',60);
+    const rs=j.results||[]; const r=rs.find(x=>x.name.toLowerCase()===t.s.toLowerCase())||rs.find(x=>x.iconic_taxon_name==='Aves'&&x.rank==='species');
+    if(!r) return null; const ph=r.default_photo||{};
+    return {id:r.id,photo:ph.medium_url||'',sq:ph.square_url||'',attr:ph.attribution||'',wiki:r.wikipedia_url||'',url:'https://www.inaturalist.org/taxa/'+r.id}; })().catch(()=>null);
+  photoMemo.set(c,p); return p; }
+async function inatSimilar(id){ const j=await cachedJSON(INAT+'/identifications/similar_species?taxon_id='+id+'&locale=en',30); return (j.results||[]).filter(r=>r.taxon&&(r.taxon.iconic_taxon_name==='Aves'||!r.taxon.iconic_taxon_name)); }
+async function inatHist(id,lat,lng){ const j=await cachedJSON(INAT+'/observations/histogram?taxon_id='+id+'&lat='+lat.toFixed(2)+'&lng='+lng.toFixed(2)+'&radius=100&interval=month_of_year&verifiable=true',30);
+  const m=(j.results&&j.results.month_of_year)||{}; return [...Array(12)].map((_,i)=>m[i+1]||0); }
+async function wikiID(c){
+  if(S.demo||!S.tax) return null; const t=S.tax.get(c); if(!t) return null;
+  const j=await cachedJSON('https://en.wikipedia.org/w/api.php?action=query&prop=extracts%7Cinfo&inprop=url&explaintext=1&exsectionformat=wiki&redirects=1&format=json&origin=*&titles='+encodeURIComponent(t.n),60);
+  const pg=Object.values((j.query&&j.query.pages)||{})[0]; if(!pg||!pg.extract) return null;
+  const tx='\n'+pg.extract; const m=tx.match(/\n==+ *(Identification|Description and identification|Description|Appearance) *==+\n([\s\S]*?)(?=\n== [^=]|\n==[^=]|$)/i);
+  const body=(m?m[2]:tx.split('\n==')[0]).replace(/\n=+[^=\n]+=+\n/g,'\n').replace(/\s+/g,' ').trim(); if(!body) return null;
+  const sents=body.match(/[^.!?]+[.!?]+(\s|$)/g)||[body];
+  return {sec:m?m[1]:'Summary',text:sents.slice(0,5).join('').trim(),url:pg.fullurl||('https://en.wikipedia.org/wiki/'+encodeURIComponent(t.n.replace(/ /g,'_')))}; }
+const notesFor=c=>{ const t=S.tax&&S.tax.get(c); return t&&typeof FIELD!=='undefined'?FIELD[nk(t.n)]||null:null; };
+const aabLink=c=>'https://www.allaboutbirds.org/guide/'+encodeURIComponent(tname(c).replace(/['’]/g,'').replace(/ /g,'_'))+'/id';
+
+/* bird groups for the ID screen */
+const GROUPMAP={'Ducks, Geese, and Waterfowl':'Ducks & geese','New World Quail':'Gamebirds','Pheasants, Grouse, and Allies':'Gamebirds','Grebes':'Grebes','Pigeons and Doves':'Doves',
+ 'Cuckoos':'Cuckoos','Nightjars and Allies':'Nightjars','Swifts':'Swifts','Hummingbirds':'Hummingbirds','Rails, Gallinules, and Allies':'Rails & gallinules','Limpkin':'Rails & gallinules','Cranes':'Cranes',
+ 'Stilts and Avocets':'Shorebirds','Oystercatchers':'Shorebirds','Plovers and Lapwings':'Shorebirds','Sandpipers and Allies':'Shorebirds','Skuas and Jaegers':'Seabirds','Auks, Murres, and Puffins':'Seabirds',
+ 'Gulls, Terns, and Skimmers':'Gulls & terns','Loons':'Loons','Storks':'Herons & storks','Frigatebirds':'Seabirds','Boobies and Gannets':'Seabirds','Anhingas':'Cormorants','Cormorants and Shags':'Cormorants',
+ 'Pelicans':'Pelicans','Herons, Egrets, and Bitterns':'Herons & storks','Ibises and Spoonbills':'Herons & storks','New World Vultures':'Raptors','Osprey':'Raptors','Hawks, Eagles, and Kites':'Raptors',
+ 'Barn-Owls':'Owls','Owls':'Owls','Kingfishers':'Kingfishers','Woodpeckers':'Woodpeckers','Falcons and Caracaras':'Raptors','Old World Parrots':'Parrots','New World and African Parrots':'Parrots',
+ 'Tyrant Flycatchers':'Flycatchers','Vireos, Shrike-Babblers, and Erpornis':'Vireos','Shrikes':'Shrikes','Crows, Jays, and Magpies':'Crows & jays','Tits, Chickadees, and Titmice':'Chickadees & titmice',
+ 'Larks':'Larks','Swallows':'Swallows','Kinglets':'Kinglets & gnatcatchers','Gnatcatchers':'Kinglets & gnatcatchers','Nuthatches':'Nuthatches & creepers','Treecreepers':'Nuthatches & creepers','Wrens':'Wrens',
+ 'Starlings and Mynas':'Starlings','Mockingbirds and Thrashers':'Mockingbirds & thrashers','Thrushes and Allies':'Thrushes','Waxwings':'Waxwings','Old World Sparrows':'House sparrows','Wagtails and Pipits':'Pipits',
+ 'Finches, Euphonias, and Allies':'Finches','Longspurs and Snow Buntings':'Longspurs','New World Sparrows':'Sparrows','Yellow-breasted Chat':'Warblers','Troupials and Allies':'Blackbirds & orioles',
+ 'New World Warblers':'Warblers','Cardinals and Allies':'Cardinals & buntings','Thraupidae':'Tanagers'};
+const groupOf=c=>{ const t=S.tax&&S.tax.get(c); const f=t&&t.f||''; return GROUPMAP[f]||f||'Other'; };
+
+/* ================= full-screen pages ================= */
+let pageStack=[], curPage=null, spMap=null, pageToken=0;
+const pgHead=(fn,title,sub,extra)=>'<div class="pgh"><button class="iconbtn" data-pback aria-label="Back"'+(pageStack.length?'':' hidden')+'>←</button><div style="flex:1;min-width:0"><div class="fn">'+fn+'</div><h1>'+title+'</h1>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>'+(extra||'')+'<button class="iconbtn" data-pclose aria-label="Close">✕</button></div>';
+function showPage(fnRender,push){ if(push&&curPage) pageStack.push(curPage); curPage=fnRender; closeDrawer(); if(spMap){ spMap.remove(); spMap=null; } pageToken++;
+  const p=$('#page'); p.hidden=false; document.body.classList.add('paged'); fnRender(); p.scrollTop=0; }
+function closePage(){ const p=$('#page'); p.hidden=true; p.innerHTML=''; document.body.classList.remove('paged'); if(spMap){ spMap.remove(); spMap=null; } pageStack=[]; curPage=null; pageToken++; }
+function pageBack(){ const f=pageStack.pop(); if(!f) return closePage(); curPage=f; if(spMap){ spMap.remove(); spMap=null; } pageToken++; f(); $('#page').scrollTop=0; }
+const live=tok=>tok===pageToken&&!$('#page').hidden;
+function setHTML(id,html){ const el=document.getElementById(id); if(el) el.innerHTML=html; }
+const photoBox=(id,label)=>'<div class="photo" id="'+id+'"><span>'+(S.demo?'Photos load on the hosted page':'Loading photo…')+'</span></div>';
+async function fillPhoto(c,id,tok,big){ const tx=await inatTaxon(c); if(!live(tok)) return; const el=document.getElementById(id); if(!el) return;
+  if(!tx||!(tx.photo||tx.sq)){ el.innerHTML=big?'<span>'+(S.demo?'Photos load on the hosted page':'No photo found')+'</span>':(el.querySelector('.sil')?el.innerHTML:''); return; }
+  el.innerHTML='<img src="'+esc(big?tx.photo:(tx.sq||tx.photo))+'" alt="'+esc(tname(c))+'" loading="lazy">'+(big?'<a class="cap" href="'+esc(tx.url)+'" target="_blank" rel="noopener">'+esc(tx.attr||'iNaturalist')+'</a>':''); }
+function marksHTML(c,n){ const no=notesFor(c); if(!no) return '';
+  return '<ul class="marks">'+no.m.slice(0,n||9).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+(n?'':(no.h?'<div class="kv1"><b>Where/how</b> '+esc(no.h)+'</div>':'')+(no.v?'<div class="kv1"><b>Voice</b> '+esc(no.v)+'</div>':'')); }
+
+/* ================= species dashboard ================= */
+async function lookalikes(c){
+  const t=S.tax.get(c); const out=new Map(); const no=notesFor(c);
+  (no&&no.like||[]).forEach(([name,d])=>{ const lc=resolveName(name); out.set(lc||nk(name),{c:lc||null,n:lc?tname(lc):name,d,src:'notes'}); });
+  try{ const tx=await inatTaxon(c); if(tx){ const sim=await inatSimilar(tx.id);
+    for(const r of sim.slice(0,12)){ const sci=r.taxon.name.toLowerCase(); const tt=S.taxBySci.get(sci)||S.taxBySci.get(sci.split(' ').slice(0,2).join(' ')); if(tt&&tt.c===c) continue;
+      const key=tt?tt.c:sci; const prev=out.get(key)||{c:tt?tt.c:null,n:tt?tt.n:(r.taxon.preferred_common_name||r.taxon.name),src:'inat'};
+      prev.cnt=r.count; out.set(key,prev); } } }catch(e){}
+  for(const x of out.values()){ if(!x.d&&x.c){ const n2=notesFor(x.c); const hit=n2&&(n2.like||[]).find(([nm])=>resolveName(nm)===c); if(hit) x.d=hit[1]; } }
+  const here=new Map(S.species.map(g=>[g.c,g])); const cty=new Set(S.county||[]);
+  return [...out.values()].map(x=>Object.assign(x,{g:x.c?here.get(x.c):null,cty:!!(x.c&&cty.has(x.c))}))
+    .sort((a,b)=>(!!b.g-!!a.g)||(b.cty-a.cty)||((b.src==='notes')-(a.src==='notes'))||((b.cnt||0)-(a.cnt||0))).slice(0,10);
+}
+function mySightings(c){ const m=S.mine; if(!m||!m.sight||!m.sight[c]) return []; return m.sight[c].map(r=>({d:r[0],loc:m.locs[r[1]]||[],cnt:r[2],sub:r[3]})).sort((a,b)=>b.d.localeCompare(a.d)); }
+function monthBars(vals,label,cls2){ const mx=Math.max(1,...vals); const cm=new Date().getMonth();
+  return '<div class="mtitle">'+label+'</div><div class="mbars" role="img" aria-label="'+esc(label)+' by month: '+vals.map((v,i)=>MONTHS[i]+' '+v).join(', ')+'">'+vals.map((v,i)=>'<i class="'+(i===cm?'now':'')+(cls2?' '+cls2:'')+'" style="height:'+Math.max(v?6:1,Math.round(v/mx*100))+'%" title="'+MONTHS[i]+': '+v+'"></i>').join('')+'</div><div class="mlab">'+MONTHS.map(m=>'<span>'+m[0]+'</span>').join('')+'</div>'; }
+function statusLine(c){ const yf=yearFirsts().get(c);
+  if(!S.mine&&!haveMine()) return '';
+  if(S.mine&&!S.mine.life[c]&&!yf) return '<span class="lifer">Lifer: not on your life list</span>';
+  return yf?'<span class="up">On your '+YEAR+' list since '+fmtDate(yf)+'</span>':'<span class="need">Year need: not yet seen in '+YEAR+'</span>'; }
+function openSpecies(c,push=true){ if(!S.tax||!S.tax.get(c)){ toast('Species names are still loading.',true); return; } showPage(()=>renderSpecies(c),push); }
+function renderSpecies(c){
+  const tok=pageToken; const t=S.tax.get(c); const g=S.species.find(x=>x.c===c); const st=spStats(c); const no=notesFor(c); const mine=mySightings(c);
+  const clips=S.audioBySp.get(c)||[]; const last=g&&g.last;
+  const btns='<div class="acts"><button class="btn" data-tgl="'+esc(c)+'">'+(S.targets.has(c)?'★ Target':'☆ Target')+'</button><button class="btn" data-seen="'+esc(c)+'">'+(yearSet().has(c)?'✓ On '+YEAR+' list':'Mark seen today')+'</button>'+
+    '<button class="btn" id="spCmp">Compare look-alikes</button><a class="btn" href="'+aabLink(c)+'" target="_blank" rel="noopener">All About Birds ID</a>'+ebLink('species/'+c,'eBird')+ebLink('map/'+c+'?yr=cur','Range map')+'<a class="btn" href="'+mlLink(c)+'" target="_blank" rel="noopener">Macaulay</a></div>';
+  const kpi='<div class="kpis k4"><div><small>Last here</small><b>'+(last?ago(last.dt):'—')+'</b><span class="sm">'+(last?esc(last.ln):'not in this search')+'</span></div>'+
+    '<div><small>Locations 7 d</small><b>'+(st.detailed?st.n7:'·')+'</b><span class="sm">30 d: '+(st.detailed?st.n30:'·')+'</span></div>'+
+    '<div><small>Trend</small><b>'+(st.detailed?trendCell(st):'·')+'</b><span class="sm">'+(st.detailed?(st.trend==='new'?'first reports':'vs prior 3 weeks'):'loading')+'</span></div>'+
+    '<div><small>Nearest</small><b>'+(g&&isFinite(g.near)?g.near.toFixed(0)+' mi':'—')+'</b><span class="sm">'+(g?'from search center':'')+'</span></div></div>';
+  const you=(S.mine?'<dl class="kv"><dt>Status</dt><dd>'+statusLine(c)+'</dd><dt>Your sightings</dt><dd>'+mine.length+(mine.length?' · first '+esc(S.mine.life[c]||mine[mine.length-1].d)+' · last '+esc(mine[0].d)+(mine[0].loc[0]?' at '+esc(mine[0].loc[0]):''):'')+'</dd></dl>':'<div class="note">Import your eBird data in Settings to see your history with this bird.</div>')+
+    (mine.length?'<table class="t"><tbody>'+mine.slice(0,40).map(r=>'<tr'+(r.sub?' data-sub="'+esc(r.sub)+'" data-ln="'+esc(r.loc[0]||'')+'"':'')+'><td class="amb" style="white-space:nowrap">'+esc(r.d)+'</td><td>'+esc(r.loc[0]||'')+'<div class="sm">'+esc([r.loc[2],r.loc[1]].filter(Boolean).join(', '))+'</div></td><td class="r">'+esc(r.cnt||'')+'</td></tr>').join('')+'</tbody></table>':'');
+  const card=(id,title,sub,body)=>'<section class="p card" id="'+id+'"><div class="ph"><h2>'+title+'</h2><span class="sub">'+(sub||'')+'</span></div><div class="cb">'+body+'</div></section>';
+  $('#page').innerHTML=pgHead('DES &lt;GO&gt; · SPECIES',esc(t.n)+tags(c),'<i>'+esc(t.s)+'</i>'+(t.f?' · '+esc(t.f):'')+(statusLine(c)?' · '+statusLine(c):''))+
+    '<div class="pgb">'+btns+'<div class="spgrid">'+
+    '<div class="col">'+card('spPh','Photo','',photoBox('spPhoto'))+card('spK','Snapshot','this search',kpi)+card('spYou','You and this bird','',you)+'</div>'+
+    '<div class="col">'+card('spId','Key field marks',no?'field notes':'loading',no?marksHTML(c):'<div class="note">Loading ID notes…</div>')+card('spLike','Look-alikes','what it gets confused with','<div class="note">Finding look-alikes…</div>')+'</div>'+
+    '<div class="col">'+card('spCalls','Calls',clips.length+' in your library',
+      (clips.length?'<table class="t"><tbody>'+clips.map(a=>'<tr><td style="width:34px"><button class="pbtn" data-clip="'+esc(a.id)+'" aria-label="Play '+esc(a.k)+'">▶</button></td><td>'+esc(a.k)+'<div class="sm">'+esc(a.name)+'</div></td></tr>').join('')+'</tbody></table>':'<div class="note">None in your library. <a href="'+mlLink(c)+'" target="_blank" rel="noopener">Hear it on Macaulay Library</a>.</div>')+
+      '<div class="acts"><button class="btn" id="spQuiz">Quiz me: this vs look-alikes</button></div>')+
+    card('spWhen','When it\'s around','','<div id="spSeason"><div class="note">Loading…</div></div>')+
+    card('spWhere','Where','last 30 days','<div id="spMap"></div><div class="sec">In this search</div><div id="spAll"><div class="note">Loading…</div></div><div class="sec">Nearest to home, anywhere</div><div id="spNear"><div class="note">Loading…</div></div>')+'</div>'+
+    '</div></div>';
+  fillPhoto(c,'spPhoto',tok,true);
+  // ID text fallback
+  if(!no) wikiID(c).then(w=>{ if(!live(tok)) return; const sub=document.querySelector('#spId .sub'); if(sub) sub.textContent=w?'Wikipedia · '+w.sec:'';
+    setHTML('spId'+'Body',''); const cb=document.querySelector('#spId .cb'); if(!cb) return;
+    cb.innerHTML=w?'<p class="wtext">'+esc(w.text)+'</p><div class="note"><a href="'+esc(w.url)+'" target="_blank" rel="noopener">Wikipedia</a> · <a href="'+aabLink(c)+'" target="_blank" rel="noopener">All About Birds ID page</a></div>'
+      :'<div class="note">'+(S.demo?'ID text from Wikipedia loads on the hosted page. ':'')+'See the <a href="'+aabLink(c)+'" target="_blank" rel="noopener">All About Birds ID page</a>.</div>'; }).catch(()=>{});
+  // look-alikes
+  let likes=[];
+  lookalikes(c).then(L=>{ likes=L; if(!live(tok)) return; const cb=document.querySelector('#spLike .cb'); if(!cb) return;
+    if(!L.length){ cb.innerHTML='<div class="note">'+(S.demo?'Look-alike data from iNaturalist loads on the hosted page.':'No look-alikes on record.')+'</div>'; return; }
+    cb.innerHTML=L.map((x,i)=>'<div class="like"'+(x.c?' data-sp="'+esc(x.c)+'"':'')+'><div class="th photo" id="lk'+i+'"></div><div style="min-width:0"><span class="nm '+(x.c?cls(x.c):'')+'">'+esc(x.n)+'</span>'+(x.c?tags(x.c):'')+
+      (x.g?'<span class="tag up">HERE NOW</span>':x.cty?'<span class="tag cy">IN COUNTY</span>':'')+
+      (x.d?'<div class="sm wh">'+esc(x.d)+'</div>':'')+'<div class="sm">'+(x.g?'last '+ago(x.g.last.dt)+' · '+esc(x.g.last.ln):'')+(x.cnt?(x.g?' · ':'')+'confused '+x.cnt.toLocaleString()+'× on iNaturalist':'')+'</div></div>'+
+      '<div class="r">'+(x.c?clipBtns(x.c,1):'')+'</div></div>').join('')+'<div class="note">Look-alikes from field notes and iNaturalist identification records. Tap one for its page.</div>';
+    L.forEach((x,i)=>{ if(x.c) fillPhoto(x.c,'lk'+i,tok,false); else { const el=document.getElementById('lk'+i); if(el) el.innerHTML=''; } }); });
+  $('#spCmp').onclick=async()=>{ if(!likes.length) likes=await lookalikes(c); const pick=[c].concat(likes.filter(x=>x.c).sort((a,b)=>(!!b.g-!!a.g)).slice(0,2).map(x=>x.c)); if(pick.length<2){ toast('No look-alikes to compare yet.',true); return; } openCompare(pick); };
+  $('#spQuiz').onclick=async()=>{ if(!likes.length) likes=await lookalikes(c); const set=[c].concat(likes.filter(x=>x.c).map(x=>x.c)).filter(x=>S.audioBySp.has(x));
+    if(set.length<2){ toast(S.audio.length?'Your library needs recordings of at least two of these birds.':'Import your Cornell library first (CALL → LIBRARY).',true); return; }
+    LS.set('quizCustom',set); LS.set('quizSrc','custom'); Q=null; closePage(); S.callMode='quiz'; renderCall(); focusPanel('call'); };
+  // seasonality
+  (async()=>{ const myM=[...Array(12)].map(()=>0); mine.forEach(r=>{ const m=+r.d.slice(5,7); if(m) myM[m-1]++; });
+    let h=''; try{ const tx=await inatTaxon(c); if(tx){ const lat=S.scope.where==='geo'?S.scope.lat:S.set.lat, lng=S.scope.where==='geo'?S.scope.lng:S.set.lng; const v=await inatHist(tx.id,lat,lng); if(v.some(Boolean)) h+=monthBars(v,'iNaturalist records within 60 mi, all years',''); } }catch(e){}
+    if(!h) h+='<div class="note">'+(S.demo?'Seasonality from iNaturalist loads on the hosted page.':'No iNaturalist records near the search center.')+'</div>';
+    if(mine.length) h+=monthBars(myM,'Your sightings by month','mine');
+    const days=[...Array(30)].map(()=>0); (S.spObs[c]||[]).forEach(o=>{ const a=Math.floor(ageD(o.dt)); if(a<30) days[29-a]++; });
+    if(days.some(Boolean)){ const mx=Math.max(...days); h+='<div class="mtitle">eBird reports in this search, last 30 days</div><div class="dbars">'+days.map((v,i)=>'<i style="height:'+Math.max(v?8:1,Math.round(v/mx*100))+'%" title="'+(29-i)+' days ago: '+v+'"></i>').join('')+'</div><div class="mlab2"><span>30 d ago</span><span>today</span></div>'; }
+    if(live(tok)) setHTML('spSeason',h); })();
+  // where
+  const sc=S.scope; const drawWhere=list=>{ if(!live(tok)) return;
+    setHTML('spAll',list.length?obsTable(list.slice().sort((a,b)=>b.dt.localeCompare(a.dt)),true):'<div class="note">None in the last 30 days.</div>');
+    if(typeof L==='undefined') return; const el=document.getElementById('spMap'); if(!el) return;
+    if(!spMap){ spMap=L.map(el,{zoomControl:false,attributionControl:false,preferCanvas:true}); tileFor().addTo(spMap); }
+    const grp=L.layerGroup().addTo(spMap); const pts=[];
+    list.forEach(o=>{ pts.push([o.lat,o.lng]); L.circleMarker([o.lat,o.lng],{radius:5+Math.min(5,Math.log2((o.cnt||1)+1)),color:colorFor(c),fillColor:colorFor(c),fillOpacity:Math.max(.25,1-ageD(o.dt)/30),weight:1}).bindTooltip(esc(o.ln)+' · '+ago(o.dt)).addTo(grp); });
+    L.circleMarker([S.set.lat,S.set.lng],{radius:4,color:cssv('--cyan'),weight:2,fillOpacity:0}).addTo(grp);
+    if(pts.length){ try{ spMap.fitBounds(L.latLngBounds(pts.concat([[S.set.lat,S.set.lng]])),{padding:[18,18],maxZoom:12}); }catch(e){} } else spMap.setView([sc.where==='geo'?sc.lat:S.set.lat,sc.where==='geo'?sc.lng:S.set.lng],9);
+    setTimeout(()=>spMap&&spMap.invalidateSize(),60); };
+  if(S.spObs[c]) drawWhere(S.spObs[c]);
+  else (sc.where==='geo'?eb('/data/obs/geo/recent/'+c,{lat:sc.lat.toFixed(4),lng:sc.lng.toFixed(4),dist:km(sc.distMi),back:30,includeProvisional:true}):eb('/data/obs/'+sc.region+'/recent/'+c,{back:30,includeProvisional:true}))
+    .then(r=>{ S.spObs[c]=r.map(norm); drawWhere(S.spObs[c]); renderNeed(); })
+    .catch(e=>{ if(live(tok)) setHTML('spAll','<div class="note down">'+esc(e.message)+'</div>'); drawWhere([]); });
+  eb('/data/nearest/geo/recent/'+c,{lat:S.set.lat,lng:S.set.lng,back:30,maxResults:20,includeProvisional:true}).then(r=>{ if(!live(tok)) return; const l=r.map(norm);
+    setHTML('spNear',l.length?'<table class="t"><tbody>'+l.map(o=>'<tr '+(o.sub?'data-sub="'+esc(o.sub)+'" data-loc="'+esc(o.loc)+'" data-ln="'+esc(o.ln)+'"':'')+'><td class="nm">'+esc(o.ln)+'<div class="sm">'+esc(o.co)+'</div></td><td class="r">'+ago(o.dt)+'</td><td class="r">'+homeMi(o.lat,o.lng).toFixed(0)+' mi</td></tr>').join('')+'</tbody></table>':'<div class="note">No reports anywhere in 30 days.</div>'); })
+    .catch(e=>{ if(live(tok)) setHTML('spNear','<div class="note down">'+esc(e.message)+'</div>'); });
+}
+
+/* ================= compare ================= */
+function openCompare(codes,push=true){ codes=[...new Set(codes)].slice(0,3); showPage(()=>renderCompare(codes),push); }
+function renderCompare(codes){
+  const tok=pageToken; const here=new Map(S.species.map(g=>[g.c,g]));
+  const col=(c,i)=>{ const g=here.get(c); const no=notesFor(c);
+    const vs=codes.filter(o=>o!==c).map(o=>{ const hit=no&&(no.like||[]).find(([nm])=>resolveName(nm)===o); return hit?'<div class="kv1"><b>vs '+esc(tname(o))+'</b> '+esc(hit[1])+'</div>':''; }).join('');
+    return '<div class="p card cmpcol"><div class="photo" id="cp'+i+'"></div><div class="cb"><div style="padding:8px 8px 0"><span class="nm '+cls(c)+'" style="font-size:15px;font-weight:600" data-sp="'+esc(c)+'">'+esc(tname(c))+'</span>'+tags(c)+
+      '<div class="sm">'+(g?'<span class="up">Here now</span> · last '+ago(g.last.dt)+' · '+esc(g.last.ln):(S.county&&S.county.includes(c)?'On the county list, not in this search':'Not in this search'))+'</div></div>'+
+      '<div class="sec">Field marks</div><div id="cm'+i+'">'+(no?marksHTML(c):'<div class="note">Loading…</div>')+'</div>'+(vs?'<div class="sec">How to tell apart</div>'+vs:'')+
+      '<div class="sec">Calls</div><div class="acts">'+((S.audioBySp.get(c)||[]).slice(0,6).map(a=>'<button class="btn" data-clip="'+esc(a.id)+'">▶ '+esc(a.k)+'</button>').join('')||'<a class="btn" href="'+mlLink(c)+'" target="_blank" rel="noopener">Macaulay audio</a>')+'</div>'+
+      '<div class="acts"><button class="btn" data-sp="'+esc(c)+'">Species page</button><a class="btn" href="'+aabLink(c)+'" target="_blank" rel="noopener">All About Birds</a></div></div></div>'; };
+  $('#page').innerHTML=pgHead('CMP &lt;GO&gt; · COMPARE',codes.map(c=>esc(tname(c))).join(' <span class="dim">vs</span> '),'Swap a bird: <input class="s" id="cmpAdd" list="taxdl" placeholder="Add or replace with…" aria-label="Add a species to compare">')+
+    '<div class="pgb"><div class="cmpwrap"><div class="cmp">'+codes.map(col).join('')+'</div></div></div>';
+  ensureDatalist();
+  codes.forEach((c,i)=>{ fillPhoto(c,'cp'+i,tok,true); if(!notesFor(c)) wikiID(c).then(w=>{ if(live(tok)) setHTML('cm'+i,w?'<p class="wtext">'+esc(w.text)+'</p>':'<div class="note">No ID text found.</div>'); }).catch(()=>{}); });
+  const inp=$('#cmpAdd'); inp.onchange=()=>{ const t=findSpecies(inp.value); if(!t) return; const nc=codes.length<3?codes.concat(t.c):[codes[0],codes[1],t.c]; curPage=()=>renderCompare([...new Set(nc)]); pageToken++; curPage(); };
+}
+
+/* ================= ID screen ================= */
+const idS={grp:'All',spot:'',q:'',needs:false,sort:'guide',sel:new Set(),spotList:null};
+function openID(push=true){ if(!S.loaded){ toast('Run a search first, then ID shows the birds reported there.',true); return; } showPage(renderID,push); }
+function idSpots(){ const m=new Map(); S.obs.forEach(o=>{ const x=m.get(o.loc)||{loc:o.loc,ln:o.ln,n:0}; x.n++; m.set(o.loc,x); }); return [...m.values()].sort((a,b)=>b.n-a.n).slice(0,40); }
+function idMatch(g,q){ if(!q) return true; const no=notesFor(g.c); const hay=nk(g.n+' '+groupOf(g.c)+' '+(no?no.m.join(' ')+' '+(no.h||''):'')); return nk(q).split(' ').every(w=>hay.includes(w)); }
+function renderID(){
+  const tok=pageToken; const l=scopeLabel(); let base=S.species;
+  if(idS.spot&&idS.spotList) base=idS.spotList;
+  const groups=new Map(); base.forEach(g=>{ const k=groupOf(g.c); groups.set(k,(groups.get(k)||0)+1); });
+  if(idS.grp!=='All'&&!groups.has(idS.grp)) idS.grp='All';
+  let list=base.filter(g=>(idS.grp==='All'||groupOf(g.c)===idS.grp)&&(!idS.needs||isNeed(g.c))&&idMatch(g,idS.q));
+  list.sort(idS.sort==='recent'?(a,b)=>b.last.dt.localeCompare(a.last.dt):(a,b)=>a.o-b.o);
+  const spots=idSpots();
+  $('#page').innerHTML=pgHead('ID &lt;GO&gt; · WHAT DID I SEE?','What did I see?',esc(l.where)+' · '+esc(l.when)+' · '+base.length+' species reported')+
+    '<div class="pgb"><div class="p card"><div class="row"><input class="s" id="idQ" placeholder="Filter by name or field mark, e.g. yellow throat, streaked, marsh" value="'+esc(idS.q)+'" style="flex:1 1 260px" aria-label="Filter">'+
+    '<select class="s" id="idSpot" aria-label="Where you saw it"><option value="">Anywhere in this search</option>'+spots.map(s=>'<option value="'+esc(s.loc)+'"'+(idS.spot===s.loc?' selected':'')+'>'+esc(s.ln)+'</option>').join('')+'</select>'+
+    '<select class="s" id="idSort" aria-label="Order"><option value="guide">Field-guide order</option><option value="recent">Most recent first</option></select>'+
+    '<label class="chk"><input type="checkbox" id="idNeeds"'+(idS.needs?' checked':'')+'> Needs only</label></div>'+
+    '<div class="chips scrollx" id="idGrp"><button class="chip" data-g="All" aria-pressed="'+(idS.grp==='All')+'">All '+base.length+'</button>'+[...groups.entries()].sort((a,b)=>b[1]-a[1]).map(([k,n])=>'<button class="chip" data-g="'+esc(k)+'" aria-pressed="'+(idS.grp===k)+'">'+esc(k)+' '+n+'</button>').join('')+'</div>'+
+    '<div class="note">'+list.length+' match'+(list.length===1?'':'es')+'. Field-guide order keeps similar birds side by side. Tick up to 3 to compare.'+(idS.sel.size?' <button class="btn pri" id="idCmp">Compare '+idS.sel.size+'</button> <button class="btn" id="idClr">Clear</button>':'')+'</div></div>'+
+    '<div class="idgrid">'+list.slice(0,150).map((g,i)=>{ const no=notesFor(g.c); const st=S.spObs[g.c]?spStats(g.c):null;
+      return '<div class="idc" data-sp="'+esc(g.c)+'"><div class="photo" id="ip'+i+'" data-c="'+esc(g.c)+'"></div><label class="sel" title="Select to compare"><input type="checkbox" data-selc="'+esc(g.c)+'"'+(idS.sel.has(g.c)?' checked':'')+' aria-label="Compare '+esc(g.n)+'"></label>'+
+        '<div class="bd"><span class="nm '+cls(g.c)+'">'+esc(g.n)+'</span>'+tags(g.c)+'<div class="sm">'+ago(g.last.dt)+' · '+esc(g.last.ln)+(st?' · '+st.n7+' loc/7d':'')+'</div>'+
+        (no?'<div class="sm wh">'+esc(no.m[0])+'</div>':'')+'<div style="margin-top:4px">'+clipBtns(g.c,2)+'</div></div></div>'; }).join('')+'</div>'+
+    (list.length>150?'<div class="note">Showing 150 of '+list.length+'. Narrow with a group or filter.</div>':'')+(list.length?'':'<div class="empty">Nothing matches. Clear the filter or pick All.</div>')+'</div>';
+  $('#idSort').value=idS.sort;
+  let qT; $('#idQ').oninput=e=>{ clearTimeout(qT); qT=setTimeout(()=>{ idS.q=e.target.value; const pos=e.target.selectionStart; renderID(); const q=$('#idQ'); q.focus(); try{ q.setSelectionRange(pos,pos); }catch(_){} },250); };
+  $('#idSort').onchange=e=>{ idS.sort=e.target.value; renderID(); };
+  $('#idNeeds').onchange=e=>{ idS.needs=e.target.checked; renderID(); };
+  $('#idSpot').onchange=async e=>{ idS.spot=e.target.value; idS.spotList=null; if(idS.spot){ try{ const r=await eb('/data/obs/'+idS.spot+'/recent',{back:30,includeProvisional:true}); const m=new Map();
+      r.map(norm).forEach(o=>{ if(!m.has(o.c)) m.set(o.c,{c:o.c,n:o.n,s:o.s,obs:[o],days:new Set(),locs:new Set([o.loc]),last:o,near:distMi(o.lat,o.lng),o:torder(o.c)}); }); idS.spotList=[...m.values()]; }catch(err){ toast(esc(err.message),true); idS.spot=''; } } renderID(); };
+  document.querySelectorAll('#idGrp [data-g]').forEach(b=>b.onclick=()=>{ idS.grp=b.dataset.g; renderID(); });
+  document.querySelectorAll('[data-selc]').forEach(cb=>{ cb.onclick=e=>e.stopPropagation(); cb.onchange=()=>{ const c=cb.dataset.selc; if(cb.checked){ if(idS.sel.size>=3){ cb.checked=false; toast('Compare up to 3 at a time.',true); return; } idS.sel.add(c); } else idS.sel.delete(c); renderID(); }; });
+  document.querySelectorAll('.idc .sel').forEach(l=>l.onclick=e=>e.stopPropagation());
+  if($('#idCmp')) $('#idCmp').onclick=()=>openCompare([...idS.sel]); if($('#idClr')) $('#idClr').onclick=()=>{ idS.sel.clear(); renderID(); };
+  // lazy photos
+  const els=[...document.querySelectorAll('.idc .photo')];
+  if(S.demo){ els.forEach(el=>el.innerHTML='<span class="sil">'+esc(groupOf(el.dataset.c))+'</span>'); return; }
+  const io=('IntersectionObserver' in window)?new IntersectionObserver(ents=>ents.forEach(en=>{ if(en.isIntersecting){ io.unobserve(en.target); fillPhoto(en.target.dataset.c,en.target.id,tok,false); } }),{root:$('#page'),rootMargin:'200px'}):null;
+  els.forEach(el=>{ el.innerHTML='<span class="sil">'+esc(groupOf(el.dataset.c))+'</span>'; io?io.observe(el):fillPhoto(el.dataset.c,el.id,tok,false); });
+}
+
+/* ================= place picker ================= */
+let PIX=null, pixBusy=null, plState=null, plGeoT=null, plSeq=0;
+const stAbbr=code=>(code||'').split('-')[1]||'';
+function countyLabel(name,st){ const us=st.startsWith('US-'); return name+(us&&!/(County|Parish|Borough|Municipality|Census Area|city)$/i.test(name)?' County':'')+', '+stAbbr(st); }
+async function buildPlaceIndex(force){
+  if(pixBusy&&!force) return pixBusy;
+  pixBusy=(async()=>{ const ix=[], seen=new Set();
+    const add=(k,label,sub,o)=>{ const key=k+'|'+label; if(seen.has(key)) return; seen.add(key); ix.push(Object.assign({k,label,sub:sub||'',key:nk(label)},o)); };
+    try{ (await regionList('country','world')).forEach(r=>add('COUNTRY',r.name,'',{kind:'region',code:r.code})); }catch(e){}
+    for(const cc of ['US','CA','MX']){ try{ (await regionList('subnational1',cc)).forEach(r=>add(cc==='US'?'STATE':cc==='CA'?'PROVINCE':'STATE',r.name,cc==='US'?'United States':cc==='CA'?'Canada':'Mexico',{kind:'region',code:r.code})); }catch(e){} }
+    const sts=new Set([S.set.homeRegion.split('-').slice(0,2).join('-')]); [S.scope.region,S.scope.county].forEach(x=>{ if(x&&x.split('-').length>=2) sts.add(x.split('-').slice(0,2).join('-')); });
+    LS.get('places',[]).forEach(p=>{ const x=p.code||p.county; if(x&&x.split('-').length>=2) sts.add(x.split('-').slice(0,2).join('-')); });
+    for(const st of sts){ try{ (await regionList('subnational2',st)).forEach(r=>add('COUNTY',countyLabel(r.name,st),'',{kind:'region',code:r.code})); }catch(e){} }
+    const hs=new Map(); S.hot.forEach(h=>hs.set(h.locId,h));
+    try{ (await cachedEB('/ref/hotspot/'+S.set.homeRegion,{fmt:'json'},7)).forEach(h=>hs.set(h.locId,h)); }catch(e){}
+    for(const h of hs.values()) add('HOTSPOT',h.locName,h.numSpeciesAllTime?h.numSpeciesAllTime+' species all-time':'',{kind:'geo',lat:h.lat,lng:h.lng,dist:3,county:h.subnational2Code||''});
+    const hsNames=new Set([...hs.values()].map(h=>nk(h.locName)));
+    if(S.mine&&S.mine.locs) S.mine.locs.forEach(lc=>{ if(lc[0]&&isFinite(lc[3])&&!hsNames.has(nk(lc[0]))) add('YOUR SPOT',lc[0],[lc[2],lc[1]].filter(Boolean).join(', '),{kind:'geo',lat:lc[3],lng:lc[4],dist:3}); });
+    PIX=ix; })();
+  return pixBusy; }
+function localPlaces(q,max){ if(!PIX) return []; const k=nk(q); if(k.length<2) return [];
+  const pri={STATE:0,PROVINCE:0,COUNTY:1,COUNTRY:2,HOTSPOT:3,'YOUR SPOT':4};
+  return PIX.map(p=>{ const i=p.key.indexOf(k); const s=i===0?0:i>0&&p.key[i-1]===' '?1:i>0?2:9; return [s,p]; }).filter(x=>x[0]<9)
+    .sort((a,b)=>a[0]-b[0]||pri[a[1].k]-pri[b[1].k]||a[1].label.length-b[1].label.length).slice(0,max||12).map(x=>x[1]); }
+async function geocode(q){ if(S.demo) return DEMO_TOWNS.filter(t=>nk(t.name).startsWith(nk(q))).slice(0,5);
+  const j=await cachedJSON('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=8&language=en&format=json',30); return j.results||[]; }
+async function countyFor(cc,admin1,admin2){ if(!admin2) return null;
+  try{ const sts=await regionList('subnational1',cc); const st=sts.find(s=>nk(s.name)===nk(admin1)); if(!st) return null;
+    const cs=await regionList('subnational2',st.code); const want=nk(admin2.replace(/ (County|Parish|Borough|Census Area|Municipality)$/i,''));
+    const c=cs.find(x=>nk(x.name)===want)||cs.find(x=>nk(x.name).startsWith(want)); return c?{code:c.code,label:countyLabel(c.name,st.code),st:st.code}:null; }catch(e){ return null; } }
+const plRow=(p,i,extra)=>'<div class="pres-r" data-pi="'+i+'"><span class="pk">'+esc(p.k)+'</span><span class="pl"><b>'+esc(p.label)+'</b>'+(p.sub?'<span class="sm"> '+esc(p.sub)+'</span>':'')+'</span>'+(extra||'')+'</div>';
+let plItems=[];
+function renderPlRes(local,towns,loading){
+  plItems=local.slice(); let h=local.map((p,i)=>plRow(p,i)).join('');
+  (towns||[]).forEach(t=>{ const sub=[t.admin2,t.admin1,t.country_code].filter(Boolean).join(', '); const i=plItems.length;
+    plItems.push({k:'TOWN',label:t.name,sub,kind:'geo',lat:t.latitude,lng:t.longitude,town:t});
+    h+=plRow(plItems[i],i,t.admin2&&t.country_code?'<button class="chip" data-pcty="'+i+'">'+esc(t.admin2.replace(/ County$/,''))+' County</button>':''); });
+  if(loading) h+='<div class="note">Searching towns…</div>';
+  if(!h&&!loading) h='<div class="note">No matches yet. Try a town, county, state, park or hotspot name.</div>';
+  $('#plRes').innerHTML=h; }
+function plSearch(q){ const seq=++plSeq; const loc=localPlaces(q); renderPlRes(loc,[],nk(q).length>=3);
+  clearTimeout(plGeoT); if(nk(q).length<3) return;
+  plGeoT=setTimeout(async()=>{ let towns=[]; try{ towns=await geocode(q); }catch(e){} if(seq!==plSeq) return; renderPlRes(localPlaces(q),towns.slice(0,6),false); },350); }
+function chipRow(id,items,cur,attr){ $('#'+id).innerHTML=items.map(([v,l])=>'<button class="chip" '+attr+'="'+v+'" aria-pressed="'+(String(cur)===String(v))+'">'+l+'</button>').join(''); }
+function renderPlControls(){ const s=plState;
+  chipRow('plDist',[[2,'2 mi'],[5,'5 mi'],[10,'10 mi'],[20,'20 mi'],[31,'31 mi']],s.dist,'data-pd');
+  chipRow('plDays',[[1,'Today'],[3,'3 days'],[7,'Week'],[14,'2 weeks'],[30,'30 days']],s.mode==='recent'?s.days:'','data-pdy');
+  $('#plYear').innerHTML=[...Array(8)].map((_,i)=>'<option>'+(YEAR-i)+'</option>').join(''); $('#plYear').value=s.year;
+  $('#plMonth').innerHTML='<option value="">—</option>'+MONTHS.map((m,i)=>'<option value="'+(i+1)+'">'+m+'</option>').join('')+'<option value="all">Whole year (slow)</option>';
+  $('#plMonth').value=s.mode==='hist'?String(s.month):'';
+  const recents=LS.get('places',[]);
+  $('#plQuick').innerHTML='<button class="chip" data-pq="home">⌂ Home</button><button class="chip" data-pq="here">◎ Near me</button>'+recents.map((p,i)=>'<button class="chip" data-pr="'+i+'">'+esc(p.label)+'</button>').join('');
+  const l=scopeLabel(); $('#plNow').textContent='Now: '+l.where+' · '+l.when; }
+async function openPlace(){
+  const sc=S.scope; plState={dist:sc.distMi,days:sc.mode==='recent'?sc.back:14,mode:sc.mode,year:sc.year||YEAR,month:sc.month||NOW0.getMonth()+1};
+  $('#placeSheet').hidden=false; $('#plQ').value=''; renderPlControls(); renderPlRes([],[],false);
+  $('#plRes').innerHTML='<div class="note">Type to search. Counties, states and hotspots come from eBird; towns from a place-name lookup.</div>';
+  if(matchMedia('(pointer:fine)').matches) $('#plQ').focus();
+  buildPlaceIndex().then(()=>{ if(!$('#placeSheet').hidden&&$('#plQ').value) plSearch($('#plQ').value); });
+  plBrowseInit(); }
+async function plBrowseInit(){ const cSel=$('#plCountry'), sSel=$('#plState'), kSel=$('#plCounty');
+  const cur=(S.scope.where==='region'?S.scope.region:(S.scope.county||S.set.homeRegion)).split('-');
+  try{ const cs=await regionList('country','world'); cSel.innerHTML=cs.map(c=>'<option value="'+esc(c.code)+'">'+esc(c.name)+'</option>').join(''); cSel.value=cur[0]||'US'; }catch(e){ cSel.innerHTML='<option value="US">United States</option>'; }
+  const loadSt=async(sel)=>{ try{ const sts=await regionList('subnational1',cSel.value); sSel.innerHTML='<option value="">Whole country</option>'+sts.map(s=>'<option value="'+esc(s.code)+'">'+esc(s.name)+'</option>').join(''); sSel.value=sel||''; }catch(e){ sSel.innerHTML='<option value="">Whole country</option>'; } };
+  const loadCo=async(sel)=>{ kSel.innerHTML='<option value="">Whole state</option>'; if(!sSel.value) return; try{ const cs=await regionList('subnational2',sSel.value); kSel.innerHTML='<option value="">Whole state</option>'+cs.map(c=>'<option value="'+esc(c.code)+'">'+esc(c.name)+'</option>').join(''); kSel.value=sel||''; }catch(e){} };
+  await loadSt(cur.length>=2?cur.slice(0,2).join('-'):''); await loadCo(cur.length>=3?cur.join('-'):'');
+  cSel.onchange=async()=>{ await loadSt(''); await loadCo(''); }; sSel.onchange=()=>loadCo('');
+  $('#plUse').onclick=()=>{ const code=kSel.value||sSel.value||cSel.value; const name=kSel.value?countyLabel(kSel.selectedOptions[0].textContent,sSel.value):sSel.value?sSel.selectedOptions[0].textContent:cSel.selectedOptions[0].textContent;
+    applyPlace({kind:'region',code,label:name,k:kSel.value?'COUNTY':sSel.value?'STATE':'COUNTRY'}); }; }
+function rememberPlace(p){ if(p.k==='HOME'||p.k==='HERE') return; const keep={kind:p.kind,label:p.label,code:p.code,lat:p.lat,lng:p.lng,dist:p.dist,county:p.county,k:p.k};
+  const l=LS.get('places',[]).filter(x=>x.label!==p.label); l.unshift(keep); LS.set('places',l.slice(0,8)); }
+function applyWhen(sc,s){ if(!s) return; if(s.mode==='hist'){ sc.mode='hist'; sc.year=s.year; sc.month=s.month; } else { sc.mode='recent'; sc.back=s.days; } }
+function applyPlace(p,opts={}){
+  const sc=S.scope;
+  if(p.kind==='geo'){ Object.assign(sc,{where:'geo',lat:p.lat,lng:p.lng,label:p.label,county:p.county||''}); sc.distMi=plState&&plState.userDist?plState.dist:(p.dist||(plState&&plState.dist)||sc.distMi); }
+  else Object.assign(sc,{where:'region',region:p.code,label:p.label,county:p.code.split('-').length===3?p.code:''});
+  applyWhen(sc,plState); rememberPlace(p); LS.set('scope',sc); $('#placeSheet').hidden=true;
+  if(map&&p.kind==='geo'){ progMove(); map.setView([p.lat,p.lng],10); }
+  if(S.demo) toast('Demo: the sample birds are the same wherever you search.');
+  refresh(); }
+function wirePlaceSheet(){
+  $('#plClose').onclick=()=>$('#placeSheet').hidden=true;
+  $('#placeSheet').addEventListener('click',e=>{ if(e.target.id==='placeSheet') $('#placeSheet').hidden=true; });
+  $('#plQ').addEventListener('input',e=>plSearch(e.target.value));
+  $('#plQ').addEventListener('keydown',e=>{ if(e.key==='Enter'&&plItems[0]){ e.preventDefault(); pickPl(0); } });
+  $('#plRes').addEventListener('click',async e=>{ const cb=e.target.closest('[data-pcty]'); if(cb){ e.stopPropagation(); const t=plItems[+cb.dataset.pcty].town; cb.textContent='…';
+      const c=await countyFor(t.country_code,t.admin1,t.admin2); if(c) applyPlace({kind:'region',code:c.code,label:c.label,k:'COUNTY'}); else { cb.textContent='not found'; } return; }
+    const r=e.target.closest('[data-pi]'); if(r) pickPl(+r.dataset.pi); });
+  $('#placeSheet').addEventListener('click',e=>{ const b=e.target.closest('[data-pd],[data-pdy],[data-pq],[data-pr]'); if(!b) return;
+    if(b.dataset.pd){ plState.dist=+b.dataset.pd; plState.userDist=true; renderPlControls(); }
+    else if(b.dataset.pdy){ plState.days=+b.dataset.pdy; plState.mode='recent'; renderPlControls(); }
+    else if(b.dataset.pq==='home') applyPlace({kind:'geo',lat:S.set.lat,lng:S.set.lng,label:'Home',county:S.set.homeRegion,k:'HOME',dist:plState.dist});
+    else if(b.dataset.pq==='here'){ if(!navigator.geolocation){ toast('Location is not available here.',true); return; } b.textContent='Locating…';
+      navigator.geolocation.getCurrentPosition(p=>applyPlace({kind:'geo',lat:p.coords.latitude,lng:p.coords.longitude,label:'Near me',k:'HERE',dist:plState.dist}),()=>{ b.textContent='◎ Near me'; toast('Location was not available. Check that Safari may use your location.',true); },{timeout:10000}); }
+    else if(b.dataset.pr){ const p=LS.get('places',[])[+b.dataset.pr]; if(p) applyPlace(p); } });
+  $('#plMonth').onchange=e=>{ const v=e.target.value; if(!v){ plState.mode='recent'; } else { plState.mode='hist'; plState.month=v==='all'?'all':+v; plState.year=+$('#plYear').value; } renderPlControls(); };
+  $('#plYear').onchange=e=>{ plState.year=+e.target.value; if(plState.mode==='hist') renderPlControls(); };
+  $('#plGo').onclick=()=>{ const sc=S.scope; applyWhen(sc,plState); if(plState.userDist){ sc.distMi=plState.dist; } LS.set('scope',sc); $('#placeSheet').hidden=true; refresh(); };
+}
+async function pickPl(i){ const p=plItems[i]; if(!p) return;
+  if(p.k==='TOWN'){ const t=p.town; const st=t.admin1?(t.country_code==='US'?(await stateCode(t.admin1)):''):''; p.label=t.name+(st?', '+stAbbr(st):t.country_code&&t.country_code!=='US'?', '+t.country_code:'');
+    const c=await countyFor(t.country_code,t.admin1,t.admin2); if(c) p.county=c.code; }
+  applyPlace(p); }
+async function stateCode(name){ try{ const sts=await regionList('subnational1','US'); const s=sts.find(x=>nk(x.name)===nk(name)); return s?s.code:''; }catch(e){ return ''; } }
+async function regByName(q){ await buildPlaceIndex(); const hit=localPlaces(q,1)[0]; if(hit){ applyPlace(hit); return true; }
+  try{ const t=(await geocode(q))[0]; if(t){ plItems=[{k:'TOWN',label:t.name,kind:'geo',lat:t.latitude,lng:t.longitude,town:t}]; await pickPl(0); return true; } }catch(e){}
+  return false; }
+
+async function openHotspot(locId){
+  const h=S.hot.find(x=>x.locId===locId)||(()=>{const o=S.obs.find(o=>o.loc===locId)||Object.values(S.spObs).flat().find(o=>o.loc===locId);return o?{locId,locName:o.ln,lat:o.lat,lng:o.lng}:{locId,locName:locId};})();
+  const play=locAgg().find(L=>L.loc===locId);
+  openDrawer(dhead('HS &lt;GO&gt; · LOCATION',esc(h.locName),(h.numSpeciesAllTime?h.numSpeciesAllTime+' species all-time · ':'')+(h.lat?homeMi(h.lat,h.lng).toFixed(0)+' mi · ~'+fmtDrive(driveMin(homeMi(h.lat,h.lng)))+' from home':''))+
+    '<div class="acts">'+(locId.startsWith('L')?ebLink('hotspot/'+locId,'eBird hotspot')+ebLink('hotspot/'+locId+'/bird-list','Bird list'):'')+(h.lat?dirLink(h.lat,h.lng)+'<button class="btn" data-center="'+h.lat+','+h.lng+'" data-cname="'+esc(h.locName)+'" data-ccty="'+esc(h.subnational2Code||'')+'">Search around here</button>':'')+'</div>'+
+    '<div class="db">'+(play?'<div class="brief">'+bestWindow(play)+'</div>':'')+'<div class="sec">Reported here · 30 days</div><div id="hObs"><div class="note">Loading…</div></div><div class="sec">Latest checklists</div><div id="hLists"><div class="note">Loading…</div></div></div>');
+  eb('/data/obs/'+locId+'/recent',{back:30,includeProvisional:true}).then(r=>{ const el=$('#hObs'); if(!el) return;
+    const l=r.map(norm).sort((a,b)=>RANK[status(a.c)]-RANK[status(b.c)]||torder(a.c)-torder(b.c));
+    el.innerHTML=(haveMine()?'<div class="note">'+l.length+' species · <span class="need">'+l.filter(o=>isNeed(o.c)).length+' you need</span>'+(S.audio.length?' · tap ▶ to hear':'')+'</div>':'')+
+      (l.length?'<table class="t"><tbody>'+l.map(o=>'<tr data-sp="'+esc(o.c)+'"><td><span class="nm '+cls(o.c)+'">'+esc(o.n)+'</span>'+tags(o.c)+'</td><td class="r">'+ago(o.dt)+'</td><td class="r">'+clipBtns(o.c,1)+'</td></tr>').join('')+'</tbody></table>':'<div class="note">Nothing in 30 days.</div>'); })
+    .catch(e=>{ const el=$('#hObs'); if(el) el.innerHTML='<div class="note down">'+esc(e.message)+'</div>'; });
+  eb('/product/lists/'+locId,{maxResults:15}).then(r=>{ const el=$('#hLists'); if(!el) return;
+    el.innerHTML=r.length?'<table class="t"><tbody>'+r.map(c=>'<tr data-sub="'+esc(c.subId)+'" data-loc="'+esc(locId)+'" data-ln="'+esc(h.locName)+'"><td class="amb">'+esc(c.obsDt)+' '+esc(c.obsTime||'')+'</td><td>'+esc(c.userDisplayName||'')+'</td><td class="r">'+(c.numSpecies!=null?c.numSpecies+' sp':'')+'</td></tr>').join('')+'</tbody></table>':'<div class="note">No checklists.</div>'; })
+    .catch(e=>{ const el=$('#hLists'); if(el) el.innerHTML='<div class="note down">'+esc(e.message)+'</div>'; });
+}
+const PROTO={P20:'Incidental',P21:'Stationary',P22:'Traveling',P62:'Historical',P23:'Area',P33:'Banding',P60:'Pelagic',P54:'Nocturnal flight call',P48:'Random'};
+async function openChecklist(sub,locId,ln){
+  openDrawer(dhead('CL &lt;GO&gt; · CHECKLIST',esc(ln||'Checklist'),esc(sub))+'<div class="acts">'+ebLink('checklist/'+sub,'Open on eBird')+(locId&&locId.startsWith('L')?'<button class="btn" data-hot="'+esc(locId)+'">Location</button>':'')+'</div><div class="db" id="clBody"><div class="note">Loading…</div></div>');
+  try{ const c=await eb('/product/checklist/view/'+sub); const el=$('#clBody'); if(!el) return;
+    const obs=(c.obs||[]).map(o=>({c:o.speciesCode,cnt:o.howManyStr||o.howManyAtleast||''})).filter(o=>S.tax?S.tax.has(o.c):true).sort((a,b)=>RANK[status(a.c)]-RANK[status(b.c)]||torder(a.c)-torder(b.c));
+    el.innerHTML='<dl class="kv"><dt>Date</dt><dd>'+esc(fmtDate(c.obsDt))+'</dd><dt>Observer</dt><dd>'+esc(c.userDisplayName||'')+'</dd><dt>Effort</dt><dd>'+esc(PROTO[c.protocolId]||c.protocolId||'')+(c.durationHrs?' · '+Math.round(c.durationHrs*60)+' min':'')+(c.effortDistanceKm?' · '+(c.effortDistanceKm*.621371).toFixed(2)+' mi':'')+'</dd>'+
+      '<dt>Species</dt><dd>'+(c.numSpecies??obs.length)+(haveMine()?' · <span class="need">'+obs.filter(o=>isNeed(o.c)).length+' you need</span>':'')+'</dd>'+(c.comments?'<dt>Notes</dt><dd>'+esc(c.comments)+'</dd>':'')+'</dl>'+
+      '<table class="t"><tbody>'+obs.map(o=>'<tr data-sp="'+esc(o.c)+'"><td><span class="nm '+cls(o.c)+'">'+esc(tname(o.c))+'</span>'+tags(o.c)+'</td><td class="r">'+esc(o.cnt)+'</td><td class="r">'+clipBtns(o.c,1)+'</td></tr>').join('')+'</tbody></table>';
+  }catch(e){ const el=$('#clBody'); if(el) el.innerHTML='<div class="note down">'+esc(e.message)+'</div>'; }
+}
+
+/* ================= map ================= */
+let map,base,pinLayer,heatLayer,hotLayer,radarLayer,circle,homeMk,_prog=false;
+function progMove(){ _prog=true; const b=document.getElementById('searchArea'); if(b) b.hidden=true; }
+function tileFor(){ const light=document.documentElement.dataset.theme==='light';
+  const t=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/'+(light?'World_Topo_Map':'Canvas/World_Dark_Gray_Base')+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:light?19:16,attribution:'Tiles © Esri'});
+  let fails=0; t.on('tileerror',()=>{ if(++fails===4&&map&&map.hasLayer(t)){ map.removeLayer(t); base=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map); base.bringToBack(); } });
+  return t; }
+function initMap(){
+  if(typeof L==='undefined'){ $('#map').innerHTML='<div class="empty">The map library didn\'t load. Check your connection.</div>'; return; }
+  map=L.map('map',{zoomControl:true,preferCanvas:true,attributionControl:true}).setView([S.scope.lat,S.scope.lng],10);
+  base=tileFor().addTo(map); pinLayer=L.layerGroup().addTo(map); hotLayer=L.layerGroup();
+  circle=L.circle([S.scope.lat,S.scope.lng],{radius:km(S.scope.distMi)*1000,color:cssv('--amber'),weight:1,dashArray:'4 4',fillOpacity:.03,interactive:false});
+  homeMk=L.circleMarker([S.set.lat,S.set.lng],{radius:5,color:cssv('--cyan'),weight:2,fillOpacity:0,interactive:false}).addTo(map);
+  map.on('click',e=>{ if(S.scope.where!=='geo') return; S.scope.lat=e.latlng.lat; S.scope.lng=e.latlng.lng; S.scope.label='Map point'; S.scope.county=''; LS.set('scope',S.scope); drawMap(); renderScope(); $('#searchArea').hidden=false; });
+  map.on('dragstart',()=>{ $('#searchArea').hidden=false; });
+  map.on('zoomend',()=>{ if(!_prog) $('#searchArea').hidden=false; });
+  map.on('moveend',()=>{ setTimeout(()=>{ _prog=false; },50); });
+  $('#searchArea').onclick=()=>{ const c=map.getCenter(), b=map.getBounds(); const r=Math.max(1,Math.min(31,Math.round(hav(c.lat,c.lng,c.lat,b.getEast())*0.9)));
+    Object.assign(S.scope,{where:'geo',lat:c.lat,lng:c.lng,distMi:r,label:'Map area',county:''}); LS.set('scope',S.scope); $('#searchArea').hidden=true; refresh(); };
+}
+function heatPoints(){ const sel=$('#heatOf').value; let src=[];
+  if(sel==='rare') src=S.rare; else if(sel==='all') src=S.obs;
+  else if(sel==='needs'){ src=S.obs.filter(o=>isNeed(o.c)); for(const [c,v] of Object.entries(S.spObs)) if(isNeed(c)) src=src.concat(v); }
+  else { src=S.obs.filter(o=>S.targets.has(o.c)); for(const c of S.targets) if(S.spObs[c]) src=src.concat(S.spObs[c]); }
+  const seen=new Set(),pts=[]; for(const o of src){ const k=o.c+'|'+o.loc+'|'+o.dt; if(seen.has(k)) continue; seen.add(k); const rec=S.scope.mode==='recent'?Math.max(.35,1-ageD(o.dt)/30):1; pts.push([o.lat,o.lng,Math.min(1,(.45+Math.log10((o.cnt||1)+1)*.35)*rec)]); }
+  return pts; }
+function drawMap(fit){
+  if(!map) return; const sc=S.scope;
+  pinLayer.clearLayers(); if(heatLayer){ map.removeLayer(heatLayer); heatLayer=null; } hotLayer.clearLayers();
+  if(sc.where==='geo'){ circle.setLatLng([sc.lat,sc.lng]).setRadius(km(sc.distMi)*1000); if(!map.hasLayer(circle)) circle.addTo(map); } else if(map.hasLayer(circle)) map.removeLayer(circle);
+  const nNeedLocs=new Set();
+  if(S.layer==='heat'){ const pts=heatPoints(); if(typeof L.heatLayer==='function') heatLayer=L.heatLayer(pts,{radius:24,blur:18,maxZoom:13,minOpacity:.3,gradient:{.2:'#1d3b6e',.45:'#2c7bb6',.65:'#fdae61',.85:'#f46d43',1:'#ff2a2a'}}).addTo(map);
+    $('#mapSub').textContent=pts.length+' points · '+$('#heatOf').selectedOptions[0].textContent.toLowerCase(); }
+  else {
+    const byLoc=new Map(); const all=S.obs.concat(S.rare); for(const v of Object.values(S.spObs)) for(const o of v) if(ageD(o.dt)<=(sc.mode==='recent'?sc.back:30)) all.push(o);
+    for(const o of all){ let l=byLoc.get(o.loc); if(!l){ l={lat:o.lat,lng:o.lng,ln:o.ln,loc:o.loc,sp:new Map()}; byLoc.set(o.loc,l); } const p=l.sp.get(o.c); if(!p||o.dt>p.dt) l.sp.set(o.c,o); }
+    for(const l of byLoc.values()){ const sp=[...l.sp.values()].sort((a,b)=>RANK[status(a.c)]-RANK[status(b.c)]||(S.targets.has(b.c)-S.targets.has(a.c)));
+      const top=sp[0]; const col=colorFor(top.c); const nN=sp.filter(o=>isNeed(o.c)).length; if(nN) nNeedLocs.add(l.loc);
+      const m=L.circleMarker([l.lat,l.lng],{radius:3+Math.min(9,Math.sqrt(sp.length)*1.4+nN*1.2),color:col,fillColor:col,fillOpacity:status(top.c)==='have'?.35:.8,weight:1});
+      m.bindPopup(()=>'<div class="pop"><h4>'+esc(l.ln)+'</h4>'+sp.length+' species'+(haveMine()?' · <span class="need">'+nN+' needed</span>':'')+'<ul>'+sp.slice(0,30).map(o=>'<li><span class="'+cls(o.c)+'">'+esc(o.n)+'</span> <span class="dim">'+ago(o.dt)+'</span></li>').join('')+'</ul>'+(l.loc&&l.loc.startsWith('L')?'<button class="btn" data-hot="'+esc(l.loc)+'">HS &lt;GO&gt;</button>':'')+'</div>');
+      pinLayer.addLayer(m); }
+    $('#mapSub').textContent=byLoc.size+' locations · '+nNeedLocs.size+' with needs'+(S.demo?' · base map shows on the hosted page':'');
+  }
+  if($('#hotBtn').getAttribute('aria-pressed')==='true'){ S.hot.slice(0,2000).forEach(h=>hotLayer.addLayer(L.circleMarker([h.lat,h.lng],{radius:2.5,color:cssv('--dim'),weight:1,fillOpacity:.5}).bindTooltip(esc(h.locName)).on('click',()=>openHotspot(h.locId)))); if(!map.hasLayer(hotLayer)) hotLayer.addTo(map); } else if(map.hasLayer(hotLayer)) map.removeLayer(hotLayer);
+  if(fit){ progMove(); if(sc.where==='geo') map.fitBounds(circle.getBounds(),{padding:[6,6]}); else if(S.obs.length) map.fitBounds(L.latLngBounds(S.obs.map(o=>[o.lat,o.lng])),{padding:[16,16],maxZoom:12}); }
+}
+function setLayer(l){ S.layer=l; document.querySelectorAll('[data-layer]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.layer===l))); drawMap(); }
+async function toggleRadar(){
+  const b=$('#radarBtn'); const on=b.getAttribute('aria-pressed')!=='true';
+  if(radarLayer){ map.removeLayer(radarLayer); radarLayer=null; }
+  b.setAttribute('aria-pressed',String(on)); if(!on||!map) return;
+  try{ const j=S.demo?null:await getJSON('https://api.rainviewer.com/public/weather-maps.json');
+    if(!j){ toast('Radar is off in demo mode.'); b.setAttribute('aria-pressed','false'); return; }
+    const fr=j.radar.past[j.radar.past.length-1];
+    radarLayer=L.tileLayer(j.host+fr.path+'/256/{z}/{x}/{y}/2/1_1.png',{opacity:.6,maxNativeZoom:7,maxZoom:19,attribution:'Radar © RainViewer'}).addTo(map);
+    toast('Rain radar from '+hm(new Date(fr.time*1000))+' (free tier is coarse above regional zoom).');
+  }catch(e){ toast('Radar unavailable ('+esc(e.message)+').',true); b.setAttribute('aria-pressed','false'); }
+}
+
+/* ================= offline snapshot ================= */
+let snapTimer=null;
+function saveSnap(){ if(S.demo||!S.loaded) return; clearTimeout(snapTimer); snapTimer=setTimeout(()=>{
+  const snap={v:1,t:S.dataT||Date.now(),obs:S.obs,rare:S.rare,hot:S.hot,spObs:S.spObs,wire:S.wire&&!S.wire.err?S.wire:null,
+    wx:S.wx&&S.wx.days?S.wx:null,tides:Array.isArray(S.tides)?S.tides:null,inat:Array.isArray(S.inat)?S.inat:null,county:S.county?{region:S.county.region,list:[...S.county]}:null};
+  dbSet('snap',snap).catch(()=>{}); },1200); }
+async function restoreSnap(){ const s=await dbGet('snap'); if(!s||s.v!==1) return false;
+  Object.assign(S,{obs:s.obs||[],rare:s.rare||[],hot:s.hot||[],spObs:s.spObs||{},wire:s.wire,inat:s.inat,loaded:true,dataT:s.t});
+  if(s.wx) S.wx=s.wx; if(s.tides) S.tides=s.tides; if(s.county) S.county=Object.assign(s.county.list,{region:s.county.region});
+  buildSpecies(); renderAll(); drawMap(true); return true; }
+
+/* ================= command line ================= */
+const FN=[['NEED','Year-needs monitor','need'],['MAP','Map','map'],['PACE','Big year pace','pace'],['PLAN','Strategy: where to go','plan'],['RARE','Rarities','rare'],['WX','Weather, tides, migration','wx'],['TGT','Target watchlist','tgt'],['CALL','Calls: field pack, quiz, library','call'],['WIRE','Latest checklists','wire'],['INAT','iNaturalist cross-check','inat']];
+const CMDS=FN.map(f=>[f[0],f[1]]).concat([['WHERE','Pick a place and dates by name'],['ID','What did I see? Narrow down birds reported here'],['CMP','CMP <bird>, <bird> · compare side by side'],['QUIZ','Call quiz'],['HOT','All hotspots ranked'],['R','R <miles> · search radius 1–31'],['D','D <days> · days back 1–30'],['REG','REG <place> · e.g. REG Arizona, REG Pima, REG Fort De Soto'],['HIST','HIST <year> <month> · a past month (region)'],['HOME','Search around home'],['HERE','Search around this device'],['GO','Refresh all data'],['TGT ADD','TGT ADD <bird> · add a target'],['SET','Settings'],['DAY','Daylight screen'],['NIGHT','Terminal screen'],['HELP','List functions']]);
+let acSel=-1, acItems=[];
+function acUpdate(){
+  const v=$('#cmd').value.trim(); const box=$('#ac');
+  if(!v){ box.hidden=true; acItems=[]; return; }
+  const up=v.toUpperCase(); const q=nk(v);
+  const c=CMDS.filter(([k])=>k.startsWith(up.split(' ')[0])&&(up.length<=k.length||up.startsWith(k+' '))).slice(0,6).map(([k,d])=>({k,d,run:()=>runCmd(up.startsWith(k)&&up.length>k.length?up:k)}));
+  let sp=[]; if(S.taxList&&q.length>=2){ const st=[],ct=[]; for(const t of S.taxList){ const n=nk(t.n); if(n.startsWith(q)) st.push(t); else if(n.includes(' '+q)||n.includes(q)) ct.push(t); if(st.length>=8) break; }
+    sp=st.concat(ct).slice(0,6).map(t=>({k:t.n.toUpperCase(),d:'DES · '+(status(t.c)==='have'?'':status(t.c).toUpperCase())+(S.audioBySp.has(t.c)?' ♪':''),run:()=>openSpecies(t.c)})); }
+  const pl=(PIX&&q.length>=3?localPlaces(v,4):[]).map(p=>({k:p.label.toUpperCase(),d:'PLACE · '+p.k,run:()=>{ plState=null; applyPlace(p); }}));
+  if(!PIX&&q.length>=3&&(S.set.key||S.demo)) buildPlaceIndex();
+  acItems=c.concat(sp).concat(pl); acSel=acItems.length?0:-1;
+  box.innerHTML=acItems.map((it,i)=>'<div role="option" aria-selected="'+(i===acSel)+'" data-i="'+i+'"><span class="k">'+esc(it.k)+'</span><span class="d">'+esc(it.d)+'</span></div>').join('');
+  box.hidden=!acItems.length;
+}
+function acMark(){ document.querySelectorAll('#ac div').forEach((d,i)=>d.setAttribute('aria-selected',String(i===acSel))); }
+function execInput(){ const v=$('#cmd').value.trim(); if(!v){ refresh(); return; }
+  const up=v.toUpperCase(); const first=up.split(/\s+/)[0];
+  if(CMDS.some(([k])=>k===first||up.startsWith(k+' '))) runCmd(up);
+  else if(acItems[acSel]) acItems[acSel].run();
+  else { const t=findSpecies(v); if(t) openSpecies(t.c); else toast('Unknown function. Type HELP.',true); }
+  $('#cmd').value=''; $('#ac').hidden=true; $('#cmd').blur(); }
+function runCmd(s){
+  const [c,...a]=s.trim().split(/\s+/); const arg=a.join(' ');
+  const fn=FN.find(f=>f[0]===c); if(fn&&!arg){ focusPanel(fn[2]); return; }
+  switch(c){
+    case 'QUIZ': S.callMode='quiz'; renderCall(); focusPanel('call'); return;
+    case 'HOT': S.planMode='hot'; renderPlan(); focusPanel('plan'); return;
+    case 'R': { const n=parseInt(a[0],10); if(!(n>=1&&n<=31)){ toast('Radius is 1–31 miles, e.g. R 15',true); return; } S.scope.distMi=n; S.scope.where='geo'; break; }
+    case 'D': { const n=parseInt(a[0],10); if(!(n>=1&&n<=30)){ toast('Days back is 1–30, e.g. D 7',true); return; } S.scope.back=n; S.scope.mode='recent'; break; }
+    case 'REG': { if(!arg){ openPlace(); return; } plState=null;
+      if(/^[A-Z]{2}(-[A-Z0-9]{1,3}(-\d{1,3})?)?$/.test(arg)&&arg.length!==2||/^[A-Z]{2}-/.test(arg)){ Object.assign(S.scope,{where:'region',region:arg,label:'',county:arg.split('-').length===3?arg:''}); break; }
+      regByName(arg).then(ok=>{ if(!ok) toast('No place called that. Try WHERE to search.',true); }); return; }
+    case 'WHERE': openPlace(); return;
+    case 'ID': openID(); return;
+    case 'CMP': { const names=s.trim().slice(3).split(/,|\bVS\b/).map(x=>x.trim()).filter(Boolean); const cs=names.map(findSpecies).filter(Boolean).map(t=>t.c);
+      if(cs.length<2){ toast('e.g. CMP Nelson\'s Sparrow, Saltmarsh Sparrow',true); return; } openCompare(cs); return; }
+    case 'HIST': { const y=parseInt(a[0],10), m=a[1]==='ALL'?'all':parseInt(a[1],10); if(!(y>=1990&&y<=YEAR)||!(m==='all'||(m>=1&&m<=12))){ toast('e.g. HIST 2025 11  (or HIST 2025 ALL — slow)',true); return; }
+      if(S.scope.where==='geo'){ S.scope.where='region'; S.scope.region=S.set.homeRegion; toast('Historic searches run by region: using '+S.set.homeRegion+'.'); } S.scope.mode='hist'; S.scope.year=y; S.scope.month=m; break; }
+    case 'HOME': Object.assign(S.scope,{where:'geo',lat:S.set.lat,lng:S.set.lng,mode:'recent',label:'Home',county:S.set.homeRegion}); if(map){ progMove(); map.setView([S.set.lat,S.set.lng],10); } break;
+    case 'HERE': if(!navigator.geolocation){ toast('Location is not available here.',true); return; }
+      navigator.geolocation.getCurrentPosition(p=>{ Object.assign(S.scope,{where:'geo',lat:p.coords.latitude,lng:p.coords.longitude,mode:'recent',label:'Near me',county:''}); LS.set('scope',S.scope); refresh(); },()=>toast('Location was not available.',true),{timeout:10000}); return;
+    case 'GO': break;
+    case 'TGT': if(a[0]==='ADD'){ const t=findSpecies(a.slice(1).join(' ')); if(!t){ toast('No species called that.',true); return; } toggleTarget(t.c,true); toast(esc(t.n)+' added to targets.'); return; } focusPanel('tgt'); return;
+    case 'SET': openSettings(); return;
+    case 'DAY': case 'NIGHT': S.set.theme=c==='DAY'?'light':'amber'; LS.set('settings',S.set); applyTheme(); return;
+    case 'HELP': showHelp(); return;
+    default: toast('Unknown function. Type HELP.',true); return;
+  }
+  LS.set('scope',S.scope); refresh();
+}
+function showHelp(){ openDrawer(dhead('HELP &lt;GO&gt;','Functions','Type in the command line (press / to jump there), then Enter or GO.')+'<div class="db"><table class="t"><tbody>'+CMDS.map(([k,d])=>'<tr><td class="amb" style="white-space:nowrap">'+esc(k)+'</td><td>'+esc(d)+'</td></tr>').join('')+
+  '<tr><td class="amb">any bird</td><td>Type a name to open its species page</td></tr><tr><td class="amb">any place</td><td>Type a town, county, state or hotspot to search there</td></tr></tbody></table><div class="note">Keys: / command · W where · I ID · Esc back/close · 1–9, 0 jump to a panel (when not typing). Tap the place and dates at the top to change them.</div></div>'); }
+function focusPanel(id){ const p=$('#p-'+id); if(!p) return;
+  if(matchMedia('(max-width:899px)').matches){ p.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+  document.querySelectorAll('.p.max').forEach(x=>{ if(x!==p) x.classList.remove('max'); }); p.classList.toggle('max');
+  if(id==='map'&&map) setTimeout(()=>map.invalidateSize(),50); if(id==='pace') renderPace(); if(id==='wx') drawWind(); }
+
+/* ================= settings, theme, clock ================= */
+function applyTheme(){ if(S.set.theme==='light') document.documentElement.dataset.theme='light'; else delete document.documentElement.dataset.theme;
+  if(map){ map.removeLayer(base); base=tileFor().addTo(map); base.bringToBack(); } renderAll(); drawMap(); }
+function openSettings(){ const s=S.set; $('#sKey').value=s.key; $('#sGoal').value=s.goal; $('#sArea').value=s.area; $('#sLat').value=s.lat; $('#sLng').value=s.lng; $('#sRegion').value=s.homeRegion; $('#sTide').value=s.tide; $('#sProxy').value=s.proxy; $('#sTheme').value=s.theme;
+  $('#sCsvStatus').textContent=S.mine?'Imported '+S.mine.rows.toLocaleString()+' sightings on '+new Date(S.mine.imported).toLocaleDateString()+' · '+Object.keys(S.mine.life).length+' life species.':'Nothing imported yet.';
+  $('#sDemo').hidden=!document.getElementById('demoData'); $('#settings').hidden=false; }
+async function saveSettings(){
+  const lat=parseFloat($('#sLat').value), lng=parseFloat($('#sLng').value); const keyChanged=$('#sKey').value.trim()!==S.set.key;
+  Object.assign(S.set,{key:$('#sKey').value.trim(),goal:Number($('#sGoal').value)||400,area:$('#sArea').value,lat:isFinite(lat)?lat:S.set.lat,lng:isFinite(lng)?lng:S.set.lng,
+    homeRegion:$('#sRegion').value.trim().toUpperCase()||DEF.homeRegion,tide:$('#sTide').value.trim(),proxy:$('#sProxy').value.trim(),theme:$('#sTheme').value});
+  LS.set('settings',S.set); memCache.clear(); $('#settings').hidden=true; ysCache=null; applyTheme();
+  if(S.set.key&&S.demo){ S.demo=false; $('#demoFlag').hidden=true; S.tax=null; }
+  if(keyChanged&&S.set.key){ toast('Key saved. Loading species names…'); try{ await loadTax(); refresh(); }catch(e){ toast(esc(e.message),true); } }
+  else { renderAll(); drawMap(); loadTides(); }
+}
+function keepStorage(){ try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){} }
+async function importCsvText(text){ await loadTax(); const mine=buildMine(text); S.mine=mine; await dbSet('mine',mine); ysCache=null; keepStorage(); return mine; }
+async function importCsv(e){ const f=e.target.files[0]; if(!f) return; const st=$('#sCsvStatus');
+  if(!S.tax&&!S.set.key){ st.innerHTML='<span class="down">Save your API key first; the import uses eBird\'s species list to match names.</span>'; return; }
+  st.textContent='Reading '+f.name+'…';
+  try{ const m=await importCsvText(await f.text()); st.textContent='Imported '+m.rows.toLocaleString()+' sightings · '+Object.keys(m.life).length+' life species · '+yearSet().size+' on your '+YEAR+' list.'; renderAll(); drawMap(); loadNeedDetail(); }
+  catch(err){ st.innerHTML='<span class="down">'+esc(err.message)+'</span>'; } }
+function renderClock(){ const d=new Date(); let sun=''; if(S.wx&&S.wx.days){ const t=S.wx.days.find(x=>x.date===ymd(d)); if(t){ const sr=parseDt(t.sunrise), ss=parseDt(t.sunset); sun=' ☀'+hm(sr)+' ☾'+hm(ss); } }
+  $('#clock').textContent=DOW[d.getDay()].toUpperCase()+' '+pad(d.getHours())+':'+pad(d.getMinutes())+sun; }
+
+/* ================= wiring ================= */
+function init(){
+  $('#fkeys').innerHTML=FN.map((f,i)=>'<button data-fn="'+f[2]+'"><i>'+(i===9?0:i+1)+'</i>'+f[0]+'</button>').join('')+'<button data-run="WHERE"><i>W</i>WHERE</button><button data-run="ID"><i>I</i>ID</button><button data-run="QUIZ"><i>Q</i>QUIZ</button><button data-run="HELP"><i>?</i>HELP</button>';
+  $('#fkeys').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; if(b.dataset.fn) focusPanel(b.dataset.fn); else runCmd(b.dataset.run); };
+  const cmd=$('#cmd');
+  cmd.addEventListener('input',acUpdate);
+  cmd.addEventListener('keydown',e=>{ if(e.key==='ArrowDown'&&acItems.length){ acSel=(acSel+1)%acItems.length; acMark(); e.preventDefault(); } else if(e.key==='ArrowUp'&&acItems.length){ acSel=(acSel-1+acItems.length)%acItems.length; acMark(); e.preventDefault(); }
+    else if(e.key==='Enter'){ e.preventDefault(); execInput(); } else if(e.key==='Escape'){ cmd.value=''; $('#ac').hidden=true; cmd.blur(); } });
+  cmd.addEventListener('blur',()=>setTimeout(()=>$('#ac').hidden=true,150));
+  $('#ac').addEventListener('mousedown',e=>{ const d=e.target.closest('[data-i]'); if(!d) return; e.preventDefault(); const it=acItems[+d.dataset.i]; cmd.value=''; $('#ac').hidden=true; it.run(); });
+  $('#goBtn').onclick=execInput;
+  document.addEventListener('keydown',e=>{ const typing=/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+    if(e.key==='Escape'){ if(!$('#drawer').hidden){ closeDrawer(); return; } if(!$('#placeSheet').hidden){ $('#placeSheet').hidden=true; return; } if(!$('#page').hidden){ pageBack(); return; } closeDrawer(); $('#settings').hidden=true; document.querySelectorAll('.p.max').forEach(p=>p.classList.remove('max')); if(map) setTimeout(()=>map.invalidateSize(),50); return; }
+    if(typing) return; if(e.key==='/'){ e.preventDefault(); cmd.focus(); return; }
+    if(!$('#page').hidden||!$('#placeSheet').hidden) return;
+    if(e.key==='w'||e.key==='W'){ openPlace(); return; } if(e.key==='i'||e.key==='I'){ openID(); return; }
+    if(/^[0-9]$/.test(e.key)&&!e.metaKey&&!e.ctrlKey){ const f=FN[(+e.key+9)%10]; if(f) focusPanel(f[2]); } });
+  $('#needShow').onchange=()=>renderNeed();
+  document.querySelectorAll('[data-layer]').forEach(b=>b.onclick=()=>setLayer(b.dataset.layer));
+  $('#heatOf').onchange=()=>{ if(S.layer!=='heat') setLayer('heat'); else drawMap(); };
+  $('#radarBtn').onclick=toggleRadar;
+  $('#hotBtn').onclick=()=>{ const b=$('#hotBtn'); b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true')); drawMap(); };
+  $('#scrim').onclick=closeDrawer;
+  $('#setBtn').onclick=openSettings; $('#scope').onclick=openPlace; wirePlaceSheet(); $('#setClose').onclick=()=>$('#settings').hidden=true;
+  $('#settings').onclick=e=>{ if(e.target.id==='settings') $('#settings').hidden=true; };
+  $('#sSave').onclick=saveSettings; $('#sCsv').onchange=importCsv;
+  $('#sClear').onclick=async()=>{ S.mine=null; await dbDel('mine'); ysCache=null; $('#sCsvStatus').textContent='Imported sightings cleared.'; renderAll(); drawMap(); };
+  $('#sDemo').onclick=()=>{ $('#settings').hidden=true; startDemo(); };
+  document.addEventListener('click',e=>{
+    const pc=e.target.closest('[data-pclose],[data-pback]'); if(pc){ return pc.hasAttribute('data-pclose')?closePage():pageBack(); }
+    const t=e.target.closest('[data-close],[data-max],[data-sort],[data-plan],[data-cm],[data-cm-go],[data-clip],[data-tgl],[data-seen],[data-center],[data-hot],[data-sub],[data-sp]'); if(!t) return;
+    if(t.hasAttribute('data-close')) return closeDrawer();
+    if(t.hasAttribute('data-max')){ const p=t.closest('.p'); focusPanel(p.id.slice(2)); return; }
+    if(t.dataset.sort){ S.needSort=t.dataset.sort; LS.set('needSort',S.needSort); return renderNeed(); }
+    if(t.dataset.plan){ S.planMode=t.dataset.plan; return renderPlan(); }
+    if(t.dataset.cm||t.dataset.cmGo){ S.callMode=t.dataset.cm||t.dataset.cmGo; return renderCall(); }
+    if(t.dataset.clip){ e.stopPropagation(); const a=S.audio.find(x=>x.id===t.dataset.clip); if(a) playClip(a,t); return; }
+    if(t.dataset.tgl){ toggleTarget(t.dataset.tgl); return $('#page').hidden?null:openSpecies(t.dataset.tgl,false); }
+    if(t.dataset.seen){ const y=String(YEAR),c=t.dataset.seen; S.manual[y]=S.manual[y]||{}; if(S.manual[y][c]) delete S.manual[y][c]; else if(!yearSet().has(c)) S.manual[y][c]=ymd(new Date());
+      LS.set('manual',S.manual); ysCache=null; renderAll(); drawMap(); return openSpecies(c,false); }
+    if(t.dataset.center){ const [a,b]=t.dataset.center.split(',').map(Number); closeDrawer(); plState=null; return applyPlace({kind:'geo',lat:a,lng:b,label:t.dataset.cname||'Map point',county:t.dataset.ccty||'',dist:3,k:'HOTSPOT'}); }
+    if(t.dataset.hot) return openHotspot(t.dataset.hot);
+    if(t.dataset.sub&&t.dataset.sub!=='undefined') return openChecklist(t.dataset.sub,t.dataset.loc,t.dataset.ln);
+    if(t.dataset.sp) return openSpecies(t.dataset.sp);
+  });
+  window.addEventListener('resize',()=>{ clearTimeout(window._rz); window._rz=setTimeout(()=>{ drawWind(); renderPace(); },200); });
+  setInterval(renderClock,30000); renderClock(); light('EBIRD','');
+  window.addEventListener('offline',()=>{ renderScope(); if(!S.demo) toast('No signal. Your list, calls and the last search still work.'); });
+  window.addEventListener('online',()=>{ renderScope(); if(!S.demo&&S.set.key){ toast('Back online. Refreshing…'); refresh(); } });
+}
+
+/* ================= demo (preview without network) ================= */
+function rng(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+let DEMO=null;
+function dtAgo(days,r){ const d=new Date(Date.now()-days*DAY); d.setHours(6+Math.floor(r()*11),Math.floor(r()*60)); return ymd(d)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+function buildDemo(){
+  const D=JSON.parse(document.getElementById('demoData').textContent); const r=rng(7);
+  setTax(D.tax); S.mine=D.mine; ysCache=null;
+  const locs=D.locs.filter(l=>homeMi(l.lat,l.lng)<=S.scope.distMi+2);
+  const pick=a=>a[Math.floor(r()*a.length)];
+  const obs=[], bySp={}; let sub=1;
+  const mk=(c,loc,age)=>{ const t=S.tax.get(c); const o={speciesCode:c,comName:t.n,sciName:t.s,locId:loc.id,locName:loc.name,lat:loc.lat,lng:loc.lng,obsDt:dtAgo(age,r),howMany:1+Math.floor(r()*r()*12),subId:'SDEMO'+(sub++),obsValid:true,obsReviewed:false,subnational2Name:'Pinellas'}; (bySp[c]=bySp[c]||[]).push(o); obs.push(o); return o; };
+  for(const c of D.common) for(let k=0,n=1+Math.floor(r()*6);k<n;k++) mk(c,pick(locs),r()*S.scope.back);
+  D.needs.forEach((c,i)=>{ const home=D.needLocs[i%D.needLocs.length]; const L=locs.find(l=>l.id===home)||pick(locs); const n=[1,2,3,5,8][i%5];
+    for(let k=0;k<n;k++) mk(c,k<2?L:pick(locs),(i%4===0?0.2:0.6)+r()*(k<2?6:26)); });
+  const rare=D.rare.map((c,i)=>{ const o=mk(c,locs.find(l=>l.id===D.rareLocs[i])||pick(locs),0.3+i*1.7); o.obsReviewed=i===0; o.obsValid=true; return o; });
+  const latest=new Map(); for(const o of obs){ const k=o.speciesCode; if(ageD(o.obsDt)>S.scope.back) continue; const p=latest.get(k); if(!p||o.obsDt>p.obsDt) latest.set(k,o); }
+  const hot=locs.filter(l=>l.id.startsWith('L')).map(l=>({locId:l.id,locName:l.name,lat:l.lat,lng:l.lng,numSpeciesAllTime:l.all||null,latestObsDt:(obs.filter(o=>o.locId===l.id).sort((a,b)=>b.obsDt.localeCompare(a.obsDt))[0]||{}).obsDt}));
+  const names=['A. Rivera','K. Chen','M. Okafor','S. Patel','J. Novak','L. Brooks','T. Haines','R. Duarte'];
+  const wire=[...Array(24)].map((_,i)=>{ const L=pick(locs); return {subId:'SDEMO'+(9000+i),locId:L.id,loc:{locName:L.name,isHotspot:true},obsDt:dtAgo(i*0.35,r).slice(0,10),obsTime:pad(6+Math.floor(r()*11))+':'+pad(Math.floor(r()*60)),numSpecies:8+Math.floor(r()*55),userDisplayName:pick(names)}; }).sort((a,b)=>(b.obsDt+b.obsTime).localeCompare(a.obsDt+a.obsTime));
+  DEMO={obs,bySp,rare,latest:[...latest.values()],hot,wire,locs,D,r};
+}
+const DEMO_TOWNS=[{name:'Seminole',latitude:27.8397,longitude:-82.7912,admin1:'Florida',admin2:'Pinellas',country_code:'US'},{name:'St. Petersburg',latitude:27.7709,longitude:-82.6793,admin1:'Florida',admin2:'Pinellas',country_code:'US'},
+  {name:'Sarasota',latitude:27.3364,longitude:-82.5307,admin1:'Florida',admin2:'Sarasota',country_code:'US'},{name:'Tampa',latitude:27.9475,longitude:-82.4584,admin1:'Florida',admin2:'Hillsborough',country_code:'US'},
+  {name:'Tucson',latitude:32.2217,longitude:-110.9265,admin1:'Arizona',admin2:'Pima',country_code:'US'},{name:'Tierra Verde',latitude:27.6909,longitude:-82.7237,admin1:'Florida',admin2:'Pinellas',country_code:'US'}];
+function demoApi(path,p){
+  const d=DEMO; const m=path.split('/').filter(Boolean);
+  if(m[0]==='ref'&&m[1]==='region'&&m[2]==='list'){ const R=d.D.regions||{}; return Promise.resolve(R[m[3]+':'+m[4]]||[]); }
+  if(path==='/data/obs/geo/recent') return Promise.resolve(d.latest);
+  if(path==='/data/obs/geo/recent/notable') return Promise.resolve(d.rare);
+  if(path==='/ref/hotspot/geo'||path.startsWith('/ref/hotspot/')) return Promise.resolve(d.hot);
+  if(m[0]==='data'&&m[1]==='obs'&&m[2]==='geo'&&m[3]==='recent') return Promise.resolve(d.bySp[m[4]]||[]);
+  if(m[0]==='data'&&m[1]==='nearest') return Promise.resolve((d.bySp[m[4]]||[]).slice().sort((a,b)=>homeMi(a.lat,a.lng)-homeMi(b.lat,b.lng)).slice(0,10));
+  if(m[0]==='data'&&m[1]==='obs'&&m[3]==='recent'&&!m[4]){ const best=new Map(); d.obs.filter(o=>o.locId===m[2]).forEach(o=>{const q=best.get(o.speciesCode); if(!q||o.obsDt>q.obsDt) best.set(o.speciesCode,o);}); return Promise.resolve([...best.values()]); }
+  if(m[0]==='data'&&m[1]==='obs') return Promise.resolve(d.latest);
+  if(m[0]==='product'&&m[1]==='lists') return Promise.resolve(m[2]&&m[2].startsWith('L')?d.wire.slice(0,6).map(w=>Object.assign({},w,{locId:m[2]})):d.wire);
+  if(m[0]==='product'&&m[1]==='spplist') return Promise.resolve(d.D.county);
+  if(m[0]==='product'&&m[1]==='checklist'){ const w=d.wire.find(x=>x.subId===m[3])||d.wire[0]; const r=rng(m[3].length*31+m[3].charCodeAt(m[3].length-1));
+    const sp=d.D.common.filter(()=>r()<.35).concat(d.D.needs.filter(()=>r()<.15));
+    return Promise.resolve({obsDt:w.obsDt+' '+w.obsTime,userDisplayName:w.userDisplayName,protocolId:'P22',durationHrs:1+r()*2,effortDistanceKm:1+r()*4,numSpecies:sp.length,obs:sp.map(c=>({speciesCode:c,howManyStr:String(1+Math.floor(r()*9))}))}); }
+  return Promise.resolve([]);
+}
+function demoWx(){ const time=[],t2=[],pp=[],ws=[],wd=[],pr=[]; const s=new Date(); s.setHours(0,0,0,0); s.setDate(s.getDate()-1);
+  for(let h=0;h<6*24;h++){ const day=Math.floor(h/24); const d=new Date(s.getFullYear(),s.getMonth(),s.getDate()+day,h%24); time.push(ymd(d)+'T'+pad(d.getHours())+':00');
+    const front=day===2; t2.push(72+8*Math.sin((d.getHours()-9)/24*2*Math.PI)-(day>=3?7:0)); pp.push(front&&d.getHours()<12?60:day===1?20:5);
+    ws.push((front?13:day>=3?10:7)+3*Math.sin(d.getHours()/24*2*Math.PI)); wd.push(day<2?160:day===2?(d.getHours()<10?240:330):350); pr.push(1013-(day===1?3:0)+(day>=3?5:day===2?Math.max(0,d.getHours()-10)/4:0)); }
+  const dt=[...Array(6)].map((_,i)=>ymd(new Date(s.getFullYear(),s.getMonth(),s.getDate()+i)));
+  return {hourly:{time,temperature_2m:t2,precipitation_probability:pp,wind_speed_10m:ws,wind_direction_10m:wd,pressure_msl:pr},
+    daily:{time:dt,sunrise:dt.map(d=>d+'T07:39'),sunset:dt.map(d=>d+'T18:41'),temperature_2m_max:[82,83,79,71,70,73],temperature_2m_min:[68,69,66,58,57,60],precipitation_probability_max:[5,20,60,5,0,10],
+      wind_speed_10m_max:[9,10,16,13,10,9],wind_direction_10m_dominant:[150,170,320,350,10,60]}}; }
+function demoTides(){ const out=[]; let t=new Date(); t.setHours(2,14,0,0); let hi=false; for(let i=0;i<14;i++){ out.push({t:ymd(t)+' '+pad(t.getHours())+':'+pad(t.getMinutes()),v:String(hi?2.1+(i%3)*.2:0.3+(i%2)*.2),type:hi?'H':'L'}); t=new Date(t.getTime()+6.2*36e5); hi=!hi; } return {predictions:out}; }
+function demoInat(){ const d=DEMO, r=rng(3); const codes=d.D.common.slice(0,14).concat(d.D.needs.slice(0,2)).concat(d.D.inatOnly);
+  return {results:codes.map(c=>{ const t=S.tax.get(c); const L=d.locs[Math.floor(r()*d.locs.length)]; return {taxon:{name:t.s,preferred_common_name:t.n},observed_on:dtAgo(r()*10,r).slice(0,10),place_guess:L.name+', Pinellas, FL',uri:'https://www.inaturalist.org/observations',photos:[],quality_grade:'research',user:{login:'demo'},location:L.lat+','+L.lng}; })}; }
+function startDemo(){
+  if(!document.getElementById('demoData')) return;
+  S.demo=true; $('#demoFlag').hidden=false; Object.assign(S.scope,{where:'geo',lat:S.set.lat,lng:S.set.lng,distMi:20,back:14,mode:'recent'});
+  buildDemo(); if(!S.targets.size){ DEMO.D.targets.forEach(c=>S.targets.add(c)); }
+  toast('Demo: your real list (export of Oct 24) with made-up reports, weather and tides.');
+  refresh();
+}
+
+/* ================= boot ================= */
+(async function boot(){
+  init(); if(S.set.theme==='light') document.documentElement.dataset.theme='light';
+  if('serviceWorker' in navigator&&!document.getElementById('demoData')&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+    navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+  initMap(); await loadAudioIndex();
+  const embedded=document.getElementById('myEbirdCsv');
+  if(document.getElementById('demoData')&&!S.set.key){ startDemo(); return; }
+  const mine=await dbGet('mine'); S.mine=mine&&mine.v>=2?mine:null;
+  renderAll();
+  if(S.set.key) await loadTax().catch(()=>{});
+  const hadSnap=S.set.key?await restoreSnap():false;
+  if(S.set.key){
+    try{ await loadTax(); }catch(e){}
+    if(embedded&&S.tax){ const txt=embedded.textContent.trim(); const sig=txt.length+':'+txt.slice(-200);
+      if(!S.mine||S.mine.v<3||LS.get('csvSig','')!==sig){ try{ await importCsvText(txt); LS.set('csvSig',sig); }catch(e){ toast(esc(e.message),true); } } }
+    if(navigator.onLine) refresh(); else { renderScope(); toast(hadSnap?'No signal. Showing the search saved at '+asOf(S.dataT)+'.':'No signal. Your list, pace and calls work; searches need service.',!hadSnap); }
+  } else { openSettings(); loadWx(); loadTides(); }
+})();
+</script>
+</body>
+</html>
